@@ -26,10 +26,10 @@
       "utils/**/*"
     ],
     "win": {
-      "target": "nsis"
+      "target": ["nsis"]
     },
     "mac": {
-      "target": "dmg",
+      "target": ["dmg"],
       "identity": null,
       "extendInfo": {
         "NSCameraUsageDescription": "Mouth Breather needs camera access to detect breathing patterns."
