@@ -8,6 +8,10 @@ const state = {
   noFaceTimer: null,
   noseSeconds: 0,
   mouthSeconds: 0,
+  // Seconds already stored from earlier app sessions today (not shown in UI,
+  // but added when saving so the daily total accumulates across restarts).
+  baseNoseSeconds: 0,
+  baseMouthSeconds: 0,
   sessionStart: new Date().toISOString(),
   threshold: 0.04,
   cameraReady: false,
@@ -253,8 +257,8 @@ function persistSession() {
   window.electronAPI.saveSession({
     date: todayString(),
     sessionStart: state.sessionStart,
-    mouthBreathingSeconds: state.mouthSeconds,
-    noseBreathingSeconds: state.noseSeconds
+    mouthBreathingSeconds: state.baseMouthSeconds + state.mouthSeconds,
+    noseBreathingSeconds: state.baseNoseSeconds + state.noseSeconds
   })
 }
 
@@ -358,6 +362,74 @@ function bindSettingsEvents() {
   })
 }
 
+// ── Tutorial ──────────────────────────────────────────────────────────────────
+
+const TUTORIAL_STEPS = [
+  {
+    icon: '📹',
+    title: 'Camera Feed',
+    body: 'Your webcam is analyzed in real time. No video is recorded or sent anywhere — all processing stays on your device.'
+  },
+  {
+    icon: '👃',
+    title: 'Breathing State',
+    body: 'The center shows your current state: NOSE (green) is great! MOUTH (amber) means try to breathe through your nose instead.'
+  },
+  {
+    icon: '⏱️',
+    title: 'Daily Timers',
+    body: 'These track how long you breathe through your nose vs mouth today. The bar shows the ratio at a glance.'
+  },
+  {
+    icon: '⚙️',
+    title: 'Settings & Summary',
+    body: 'Tap the gear icon (top-right) to adjust detection sensitivity, set a daily summary reminder, and view today\'s stats anytime.'
+  }
+]
+
+let tutorialStepIndex = 0
+
+function renderTutorialStep() {
+  const step = TUTORIAL_STEPS[tutorialStepIndex]
+  document.getElementById('tutorial-icon').textContent = step.icon
+  document.getElementById('tutorial-title').textContent = step.title
+  document.getElementById('tutorial-body').textContent = step.body
+
+  document.querySelectorAll('.tut-dot').forEach((dot, i) => {
+    dot.className = 'tut-dot' + (i === tutorialStepIndex ? ' active' : '')
+  })
+
+  const nextBtn = document.getElementById('tutorial-next-btn')
+  nextBtn.textContent = tutorialStepIndex === TUTORIAL_STEPS.length - 1 ? 'Done ✓' : 'Next →'
+}
+
+function finishTutorial() {
+  document.getElementById('tutorial-overlay').classList.add('hidden')
+  window.electronAPI.saveSettings({ tutorialSeen: true })
+  if (!state.settings.calibrated) showCalibration()
+}
+
+function initTutorial() {
+  document.getElementById('tutorial-next-btn').addEventListener('click', () => {
+    tutorialStepIndex++
+    if (tutorialStepIndex >= TUTORIAL_STEPS.length) {
+      finishTutorial()
+    } else {
+      renderTutorialStep()
+    }
+  })
+
+  document.getElementById('tutorial-skip-btn').addEventListener('click', () => {
+    finishTutorial()
+  })
+}
+
+function showTutorial() {
+  tutorialStepIndex = 0
+  renderTutorialStep()
+  document.getElementById('tutorial-overlay').classList.remove('hidden')
+}
+
 // ── Onboarding ────────────────────────────────────────────────────────────────
 
 function showOnboarding() {
@@ -371,8 +443,12 @@ function showOnboarding() {
       if (cameraOk) {
         await window.electronAPI.saveSettings({ cameraPermission: true })
         const detectorOk = await initMediaPipe()
-        if (detectorOk && !state.settings.calibrated) {
-          showCalibration()
+        if (detectorOk) {
+          if (!state.settings.tutorialSeen) {
+            showTutorial()
+          } else if (!state.settings.calibrated) {
+            showCalibration()
+          }
         }
       }
     } else {
@@ -593,14 +669,14 @@ function drawDonut(canvas, nosePct, mouthPct) {
 }
 
 // ── Restore today's session data ──────────────────────────────────────────────
+// Load previously-stored seconds into base fields so the daily total accumulates
+// across restarts, but the visible counters always start at 0.
 
 async function restoreSession() {
   const session = await window.electronAPI.getSession(todayString())
   if (session) {
-    state.noseSeconds   = session.noseBreathingSeconds  || 0
-    state.mouthSeconds  = session.mouthBreathingSeconds || 0
-    state.sessionStart  = session.sessionStart || new Date().toISOString()
-    updateCounterUI()
+    state.baseNoseSeconds  = session.noseBreathingSeconds  || 0
+    state.baseMouthSeconds = session.mouthBreathingSeconds || 0
   }
 }
 
@@ -611,6 +687,7 @@ async function boot() {
 
   const settings = await loadSettings()
   bindSettingsEvents()
+  initTutorial()
 
   await restoreSession()
 
@@ -619,9 +696,18 @@ async function boot() {
     showOnboarding()
   } else {
     const cameraOk = await startCamera()
-    if (cameraOk) {
-      const detectorOk = await initMediaPipe()
-      if (detectorOk && !settings.calibrated) {
+    if (!cameraOk) {
+      // Camera failed even though permission was previously saved.
+      // Clear the flag so onboarding re-runs next launch.
+      await window.electronAPI.saveSettings({ cameraPermission: false })
+      showOnboarding()
+      return
+    }
+    const detectorOk = await initMediaPipe()
+    if (detectorOk) {
+      if (!settings.tutorialSeen) {
+        showTutorial()
+      } else if (!settings.calibrated) {
         showCalibration()
       }
     }

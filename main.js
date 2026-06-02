@@ -13,6 +13,7 @@ const store = new Store({
     summaryTime: '18:00',
     startAtLogin: false,
     calibrated: false,
+    tutorialSeen: false,
     lastSummaryDate: null,
     windowBounds: null
   }
