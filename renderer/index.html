@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!--
+    'unsafe-eval' is REQUIRED: MediaPipe WASM glue uses new Function() internally.
+    Without it, FaceMesh initializes but onResults never fires.
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'wasm-unsafe-eval';
+                 style-src 'self' 'unsafe-inline';
+                 connect-src https://cdn.jsdelivr.net;
+                 img-src 'self' data: blob:;
+                 media-src 'self' blob:;
+                 worker-src blob: https://cdn.jsdelivr.net;">
+  <title>Mouth Breather</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ── Onboarding overlay (first launch) ──────────────────────────────── -->
+<div id="onboarding" class="overlay hidden">
+  <div class="ob-icon">🫁</div>
+  <h1>Mouth Breather</h1>
+  <p>Real-time breathing awareness. Keep the app open while you work and it will quietly track whether you're breathing through your nose or mouth.</p>
+  <p class="privacy-badge">🔒 All processing is local — no data leaves this device</p>
+  <button class="btn btn-primary" id="ob-allow-btn" style="width:100%;max-width:220px">
+    Allow Camera Access
+  </button>
+  <button class="btn btn-ghost" id="ob-skip-btn" style="font-size:11px">
+    Set up later
+  </button>
+</div>
+
+<!-- ── Calibration modal ───────────────────────────────────────────────── -->
+<div id="calibration-modal" class="overlay hidden">
+  <h2>Calibrate Detection</h2>
+  <p>We'll measure your natural mouth positions to set an accurate threshold for you.</p>
+
+  <div id="calibration-step-label">Get ready…</div>
+  <div id="calibration-ratio-display">—</div>
+
+  <div id="calibration-progress">
+    <div class="cal-dot" id="cal-dot-0"></div>
+    <div class="cal-dot" id="cal-dot-1"></div>
+    <div class="cal-dot" id="cal-dot-2"></div>
+  </div>
+
+  <button class="btn btn-primary" id="cal-start-btn" style="width:100%;max-width:200px">
+    Start Calibration
+  </button>
+  <button class="btn btn-ghost" id="cal-skip-btn" style="font-size:11px">
+    Use default threshold
+  </button>
+</div>
+
+<!-- ── Daily summary modal ────────────────────────────────────────────── -->
+<div id="summary-modal" class="overlay hidden">
+  <h2>Daily Summary</h2>
+  <div id="summary-date"></div>
+
+  <canvas id="donut-chart" width="140" height="140"></canvas>
+
+  <div id="summary-legend">
+    <div class="legend-item">
+      <div class="legend-dot nose"></div>
+      <span id="legend-nose-pct">—% Nose</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot mouth"></div>
+      <span id="legend-mouth-pct">—% Mouth</span>
+    </div>
+  </div>
+
+  <div id="summary-total"></div>
+  <div id="summary-streak"></div>
+  <div id="summary-message"></div>
+
+  <button class="btn btn-primary" id="summary-close-btn" style="width:100%;max-width:200px">
+    Done
+  </button>
+</div>
+
+<!-- ── Settings panel ─────────────────────────────────────────────────── -->
+<div id="settings-panel" class="hidden">
+  <div id="settings-header">
+    <h2>Settings</h2>
+    <button class="btn btn-ghost" id="settings-close-btn" style="padding:4px 8px;font-size:18px">✕</button>
+  </div>
+
+  <div class="settings-group">
+    <div class="settings-row">
+      <div class="settings-row-label">
+        <span>Always on Top</span>
+        <small>Keep the window above other apps</small>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="setting-always-on-top">
+        <div class="toggle-track"></div>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-label">
+        <span>Start at Login</span>
+        <small>Launch automatically on startup</small>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="setting-start-at-login">
+        <div class="toggle-track"></div>
+      </label>
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+      <div class="settings-row-label">
+        <span>Detection Sensitivity</span>
+        <small>Lower = more sensitive (triggers easier)</small>
+      </div>
+      <div class="settings-slider-wrap">
+        <div class="settings-slider-row">
+          <span style="font-size:11px;color:var(--text-dim);width:40px">Low</span>
+          <input type="range" id="setting-threshold" min="0.01" max="0.12" step="0.005" value="0.04">
+          <span style="font-size:11px;color:var(--text-dim);width:40px;text-align:right">High</span>
+        </div>
+        <div style="text-align:center;font-size:11px;color:var(--text-dim)">
+          Threshold: <span id="threshold-display">0.04</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <div class="settings-row">
+      <div class="settings-row-label">
+        <span>Daily Summary Time</span>
+        <small>When to show today's summary</small>
+      </div>
+      <input type="time" id="setting-summary-time" value="18:00">
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+      <span>Today's Summary</span>
+      <button class="btn btn-secondary" id="view-summary-btn" style="width:100%">
+        View Today's Summary
+      </button>
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+      <span>Re-run Calibration</span>
+      <button class="btn btn-secondary" id="recalibrate-btn" style="width:100%">
+        Calibrate Detection Threshold
+      </button>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:8px;font-size:10px;color:var(--text-faint)">
+    🔒 All processing is local
+  </div>
+</div>
+
+<!-- ── Main app ────────────────────────────────────────────────────────── -->
+<div id="app">
+  <div id="top-bar">
+    <div id="app-title">Mouth Breather</div>
+    <button id="settings-btn" title="Settings">⚙</button>
+  </div>
+
+  <div id="camera-wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="status-dot"></div>
+  </div>
+
+  <div id="state-section">
+    <div id="state-indicator" class="state-none">
+      <div id="pulse-ring"></div>
+      <div id="state-emoji">👃</div>
+      <div id="state-label">WAITING</div>
+    </div>
+  </div>
+
+  <div id="stats-section">
+    <div id="stats-row">
+      <div class="stat-item nose">
+        <div class="stat-icon">👃</div>
+        <div class="stat-value" id="nose-time">00:00:00</div>
+        <div class="stat-label">Nose</div>
+      </div>
+      <div class="stat-item mouth">
+        <div class="stat-icon">👄</div>
+        <div class="stat-value" id="mouth-time">00:00:00</div>
+        <div class="stat-label">Mouth</div>
+      </div>
+    </div>
+
+    <div id="ratio-bar-wrap">
+      <div id="ratio-bar">
+        <div id="ratio-fill"></div>
+      </div>
+      <div id="ratio-labels">
+        <span id="nose-pct-label">—%</span>
+        <span id="mouth-pct-label">—%</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="status-bar">Initializing…</div>
+</div>
+
+<!-- MediaPipe FaceMesh from CDN — loaded last so DOM is ready -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js"
+        crossorigin="anonymous"></script>
+<script src="app.js"></script>
+
+</body>
+</html>

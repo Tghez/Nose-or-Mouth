@@ -1,0 +1,39 @@
+{
+  "name": "mouth-breather",
+  "version": "1.0.0",
+  "description": "Real-time mouth/nose breathing monitor",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.tghez.mouth-breather",
+    "productName": "Mouth Breather",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "utils/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "identity": null,
+      "extendInfo": {
+        "NSCameraUsageDescription": "Mouth Breather needs camera access to detect breathing patterns."
+      }
+    }
+  }
+}
