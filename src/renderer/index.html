@@ -9,12 +9,12 @@
   -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
-                 script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'wasm-unsafe-eval';
+                 script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval';
                  style-src 'self' 'unsafe-inline';
-                 connect-src https://cdn.jsdelivr.net https://*.supabase.co;
+                 connect-src 'self' https://*.supabase.co;
                  img-src 'self' data: blob:;
                  media-src 'self' blob:;
-                 worker-src blob: https://cdn.jsdelivr.net;">
+                 worker-src 'self' blob:;">
   <title>Mouth Breather</title>
 </head>
 <body>
@@ -157,11 +157,11 @@
       <div class="settings-slider-wrap">
         <div class="settings-slider-row">
           <span style="font-size:11px;color:var(--text-dim);width:40px">Low</span>
-          <input type="range" id="setting-threshold" min="0.01" max="0.12" step="0.005" value="0.04">
+          <input type="range" id="setting-threshold" min="0.01" max="0.95" step="0.01" value="0.2">
           <span style="font-size:11px;color:var(--text-dim);width:40px;text-align:right">High</span>
         </div>
         <div style="text-align:center;font-size:11px;color:var(--text-dim)">
-          Threshold: <span id="threshold-display">0.04</span>
+          Threshold: <span id="threshold-display">0.20</span>
         </div>
       </div>
     </div>
@@ -270,9 +270,6 @@
   <div id="status-bar">Initializing…</div>
 </div>
 
-<!-- MediaPipe FaceMesh from CDN — loaded before app script -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js"
-        crossorigin="anonymous"></script>
 <script type="module" src="./src/app.ts"></script>
 
 </body>

@@ -22,6 +22,9 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
+    optimizeDeps: {
+      exclude: ['@mediapipe/tasks-vision']
+    },
     build: {
       rollupOptions: {
         input: {

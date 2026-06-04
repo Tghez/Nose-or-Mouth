@@ -1,4 +1,6 @@
 import './styles.css'
+import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
+import type { FaceLandmarkerResult } from '@mediapipe/tasks-vision'
 import type { AppState, CalibrationState } from '../../types/state'
 import type { StoreSchema, SummaryData } from '../../types/session'
 import { initAuth, signIn, signUp, signOut, syncSession, authState } from './auth'
@@ -18,7 +20,7 @@ const state: AppState = {
   baseNoseSeconds: 0,
   baseMouthSeconds: 0,
   sessionStart: new Date().toISOString(),
-  threshold: 0.04,
+  threshold: 0.2,
   cameraReady: false,
   mediapipeReady: false,
   settings: {}
@@ -65,39 +67,27 @@ function formatTime(totalSeconds: number): string {
   return [h, m, sec].map(v => String(v).padStart(2, '0')).join(':')
 }
 
-// ── MediaPipe FaceMesh ────────────────────────────────────────────────────────
+// ── MediaPipe FaceLandmarker ──────────────────────────────────────────────────
 
-const LM = { UPPER_LIP_TOP: 13, LOWER_LIP_BOT: 14, FOREHEAD: 10, CHIN: 152 }
-
-let faceMesh: FaceMesh | null = null
+let faceLandmarker: FaceLandmarker | null = null
 let lastSendTime = 0
 
 async function initMediaPipe(): Promise<boolean> {
-  if (typeof FaceMesh === 'undefined') {
-    setStatus('FaceMesh not loaded — check internet connection')
-    return false
-  }
-
-  setStatus('Loading detector… (first run may take ~20s)')
-
-  faceMesh = new FaceMesh({
-    locateFile: (file) =>
-      `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`
-  })
-
-  faceMesh.setOptions({
-    maxNumFaces: 1,
-    refineLandmarks: false,
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5
-  })
-
-  faceMesh.onResults(onFaceMeshResults)
-
+  setStatus('Loading detector…')
   try {
-    await faceMesh.initialize()
-  } catch {
-    setStatus('Detector init failed — check internet connection')
+    const vision = await FilesetResolver.forVisionTasks('./mediapipe-wasm')
+    faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: './mediapipe-wasm/face_landmarker.task',
+        delegate: 'CPU',
+      },
+      outputFaceBlendshapes: true,
+      runningMode: 'VIDEO',
+      numFaces: 1,
+    })
+  } catch (err) {
+    console.error('FaceLandmarker init error:', err)
+    setStatus('Detector init failed')
     return false
   }
 
@@ -110,51 +100,51 @@ async function initMediaPipe(): Promise<boolean> {
 function startDetectionLoop(): void {
   function loop(): void {
     requestAnimationFrame(loop)
-    if (!state.cameraReady || !state.mediapipeReady || !faceMesh) return
+    if (!state.cameraReady || !state.mediapipeReady || !faceLandmarker) return
     const now = Date.now()
     if (now - lastSendTime >= 200) {
       lastSendTime = now
       if (videoEl.readyState >= 2) {
-        faceMesh.send({ image: videoEl }).catch(() => {})
+        try {
+          const results = faceLandmarker.detectForVideo(videoEl, performance.now())
+          onFaceLandmarkerResults(results)
+        } catch (err) {
+          console.error('detectForVideo error:', err)
+        }
       }
     }
   }
   loop()
 }
 
-function computeMouthRatio(landmarks: NormalizedLandmarkList): number {
-  const get = (i: number) => landmarks[i]
-  const lipGap = Math.abs(get(LM.LOWER_LIP_BOT).y - get(LM.UPPER_LIP_TOP).y)
-  const faceH  = Math.abs(get(LM.CHIN).y - get(LM.FOREHEAD).y)
-  if (faceH < 0.001) return 0
-  return lipGap / faceH
+function getJawOpen(results: FaceLandmarkerResult): number {
+  const cats = results.faceBlendshapes?.[0]?.categories
+  if (!cats) return 0
+  return cats.find(c => c.categoryName === 'jawOpen')?.score ?? 0
 }
 
-function classifyMouth(landmarks: NormalizedLandmarkList): boolean {
-  const ratio = computeMouthRatio(landmarks)
-  ratioBuffer.push(ratio)
+function classifyMouth(jawOpen: number): boolean {
+  ratioBuffer.push(jawOpen)
   if (ratioBuffer.length > BUFFER_SIZE) ratioBuffer.shift()
   const avg = ratioBuffer.reduce((a, b) => a + b, 0) / ratioBuffer.length
   return avg > state.threshold
 }
 
-function onFaceMeshResults(results: FaceMeshResults): void {
-  if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+function onFaceLandmarkerResults(results: FaceLandmarkerResult): void {
+  if (!results.faceLandmarks || results.faceLandmarks.length === 0) {
     handleNoFace()
     return
   }
   handleFaceDetected()
-  const landmarks = results.multiFaceLandmarks[0]
-  state.mouthOpen = classifyMouth(landmarks)
+
+  const jawOpen = getJawOpen(results)
+  state.mouthOpen = classifyMouth(jawOpen)
   updateStateUI()
 
   if (calibrationState.active) {
-    const ratio = computeMouthRatio(landmarks)
     const el = document.getElementById('calibration-ratio-display')
-    if (el) el.textContent = ratio.toFixed(4)
-    if (calibrationState.collecting) {
-      calibrationState.samples.push(ratio)
-    }
+    if (el) el.textContent = jawOpen.toFixed(4)
+    if (calibrationState.collecting) calibrationState.samples.push(jawOpen)
   }
 }
 
@@ -313,13 +303,19 @@ async function startCamera(): Promise<boolean> {
 async function loadSettings(): Promise<StoreSchema> {
   const s = await window.electronAPI.getSettings()
   state.settings = s
-  state.threshold = s.threshold ?? 0.04
+
+  // jawOpen blendshape lives in [0, 1]; reset any threshold from previous metrics.
+  const stored = s.threshold ?? 0.2
+  const isStale = stored < 0 || stored > 1.0
+  if (isStale) await window.electronAPI.saveSettings({ calibrated: false, threshold: 0.2 })
+  const effective = isStale ? 0.2 : stored
+  state.threshold = effective
 
   ;(document.getElementById('setting-always-on-top') as HTMLInputElement).checked = !!s.alwaysOnTop
   ;(document.getElementById('setting-start-at-login') as HTMLInputElement).checked = !!s.startAtLogin
   ;(document.getElementById('setting-summary-time') as HTMLInputElement).value = s.summaryTime ?? '18:00'
   const thresholdEl = document.getElementById('setting-threshold') as HTMLInputElement
-  thresholdEl.value = String(s.threshold ?? 0.04)
+  thresholdEl.value = String(effective)
   ;(document.getElementById('threshold-display') as HTMLSpanElement).textContent =
     parseFloat(thresholdEl.value).toFixed(3)
 
@@ -373,7 +369,7 @@ function bindSettingsEvents(): void {
 
   window.electronAPI.onSettingsChanged((newSettings) => {
     state.settings = newSettings
-    state.threshold = newSettings.threshold ?? 0.04
+    state.threshold = newSettings.threshold ?? 0.2
     alwaysOnTopEl.checked  = !!newSettings.alwaysOnTop
     startAtLoginEl.checked = !!newSettings.startAtLogin
   })
@@ -549,8 +545,8 @@ async function runCalStep1(): Promise<void> {
   calibrationState.collecting = false
   const openAvg = avg(calibrationState.samples)
 
-  const threshold = parseFloat(((closedAvg + openAvg) / 2).toFixed(4))
-  const clamped   = Math.min(Math.max(threshold, 0.01), 0.12)
+  const threshold = parseFloat((closedAvg + (openAvg - closedAvg) * 0.25).toFixed(4))
+  const clamped   = Math.min(Math.max(threshold, 0.01), 0.95)
 
   state.threshold = clamped
   ;(document.getElementById('setting-threshold') as HTMLInputElement).value = String(clamped)
