@@ -1,12 +1,15 @@
-'use strict'
+import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, session } from 'electron'
+import type { NativeImage } from 'electron'
+import { join } from 'path'
+import Store from 'electron-store'
+import * as storage from './utils/storage'
+import { startScheduler, computeStreak, localDateString } from './utils/scheduler'
+import type { StoreSchema, Session, SummaryData } from '../types/session'
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, session } = require('electron')
-const path = require('path')
-const Store = require('electron-store')
-const storage = require('./utils/storage')
-const { startScheduler, computeStreak, localDateString } = require('./utils/scheduler')
+// app doesn't type isQuitting, but we set it as a quit guard flag
+const appState = app as typeof app & { isQuitting: boolean }
 
-const store = new Store({
+const store = new Store<StoreSchema>({
   defaults: {
     alwaysOnTop: false,
     threshold: 0.04,
@@ -15,22 +18,18 @@ const store = new Store({
     calibrated: false,
     tutorialSeen: false,
     lastSummaryDate: null,
-    windowBounds: null
+    windowBounds: null,
+    cameraPermission: false
   }
 })
 
-let mainWindow = null
-let tray = null
-let lastSessionPayload = null
+let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let lastSessionPayload: Session | null = null
 
-// ── Tray icon generation ─────────────────────────────────────────────────────
-// Tiny 16×16 PNGs encoded as base64. Generated from 1×1 solid color PNGs
-// scaled up — cross-platform safe (SVG data URIs are unreliable on Windows).
-// The hex below is a valid 16×16 PNG with a single solid color per icon.
+// ── Tray icon generation ──────────────────────────────────────────────────────
 
-function makeTrayIcon(color) {
-  // Build a simple 16×16 colored-circle SVG and use it as a nativeImage.
-  // On Windows this works fine with Electron 33's nativeImage.createFromDataURL.
+function makeTrayIcon(color: string): NativeImage {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
     <circle cx="8" cy="8" r="7" fill="${color}"/>
   </svg>`
@@ -38,7 +37,7 @@ function makeTrayIcon(color) {
   return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${b64}`)
 }
 
-const TRAY_ICONS = {
+const TRAY_ICONS: Record<string, () => NativeImage> = {
   nose:  () => makeTrayIcon('#22c55e'),
   mouth: () => makeTrayIcon('#f59e0b'),
   none:  () => makeTrayIcon('#6b7280')
@@ -46,7 +45,7 @@ const TRAY_ICONS = {
 
 // ── Window ────────────────────────────────────────────────────────────────────
 
-function createWindow() {
+function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 420,
     height: 510,
@@ -60,7 +59,7 @@ function createWindow() {
     skipTaskbar: false,
     title: 'Mouth Breather',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,
@@ -68,13 +67,17 @@ function createWindow() {
     }
   })
 
-  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'))
+  if (process.env.ELECTRON_RENDERER_URL) {
+    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
+  } else {
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
 
-  mainWindow.on('close', (e) => {
-    // Minimize to tray instead of closing (unless quitting)
-    if (!app.isQuitting) {
+  mainWindow.on('close', (e: Electron.Event) => {
+    if (!appState.isQuitting) {
       e.preventDefault()
-      mainWindow.hide()
+      mainWindow?.hide()
     }
   })
 
@@ -83,25 +86,65 @@ function createWindow() {
   })
 }
 
-// ── Camera permission (required on Windows) ──────────────────────────────────
+// ── Camera permission ─────────────────────────────────────────────────────────
 
-function setupPermissions() {
-  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+function setupPermissions(): void {
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     if (permission === 'media' || permission === 'mediaKeySystem') {
       callback(true)
     } else {
       callback(false)
     }
   })
-  session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
     if (permission === 'media') return true
-    return null
+    return false
   })
 }
 
 // ── Tray ──────────────────────────────────────────────────────────────────────
 
-function createTray() {
+function showSummaryNow(): void {
+  const today = localDateString()
+  const sess = storage.getSession(today)
+  const allSessions = storage.readAll()
+  const streak = computeStreak(allSessions)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show()
+    mainWindow.focus()
+    const payload: SummaryData = {
+      date: today,
+      noseSeconds: sess?.noseBreathingSeconds ?? 0,
+      mouthSeconds: sess?.mouthBreathingSeconds ?? 0,
+      streak
+    }
+    mainWindow.webContents.send('daily-summary-trigger', payload)
+  }
+}
+
+function updateTrayMenu(): void {
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'Show Mouth Breather',
+      click: () => { mainWindow?.show(); mainWindow?.focus() }
+    },
+    {
+      label: "View Today's Summary",
+      click: () => showSummaryNow()
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        appState.isQuitting = true
+        app.quit()
+      }
+    }
+  ])
+  tray?.setContextMenu(menu)
+}
+
+function createTray(): void {
   tray = new Tray(TRAY_ICONS.none())
   tray.setToolTip('Mouth Breather')
   updateTrayMenu()
@@ -118,74 +161,33 @@ function createTray() {
   })
 }
 
-function showSummaryNow() {
-  const today = localDateString()
-  const session = storage.getSession(today)
-  const allSessions = storage.readAll()
-  const streak = computeStreak(allSessions)
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.show()
-    mainWindow.focus()
-    mainWindow.webContents.send('daily-summary-trigger', {
-      date: today,
-      noseSeconds: (session && session.noseBreathingSeconds) || 0,
-      mouthSeconds: (session && session.mouthBreathingSeconds) || 0,
-      streak
-    })
-  }
-}
-
-function updateTrayMenu() {
-  const menu = Menu.buildFromTemplate([
-    {
-      label: 'Show Mouth Breather',
-      click: () => {
-        if (mainWindow) { mainWindow.show(); mainWindow.focus() }
-      }
-    },
-    {
-      label: 'View Today\'s Summary',
-      click: () => showSummaryNow()
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit',
-      click: () => {
-        app.isQuitting = true
-        app.quit()
-      }
-    }
-  ])
-  tray.setContextMenu(menu)
-}
-
 // ── IPC Handlers ──────────────────────────────────────────────────────────────
 
-function registerIpcHandlers() {
-  ipcMain.handle('save-session', async (_event, payload) => {
+function registerIpcHandlers(): void {
+  ipcMain.handle('save-session', async (_event, payload: Session) => {
     lastSessionPayload = payload
     storage.saveSession(payload)
     return { ok: true }
   })
 
-  ipcMain.handle('get-session', async (_event, date) => {
+  ipcMain.handle('get-session', async (_event, date: string) => {
     return storage.getSession(date)
   })
 
-  ipcMain.handle('show-notification', async (_event, { title, body }) => {
+  ipcMain.handle('show-notification', async (_event, { title, body }: { title: string; body: string }) => {
     if (Notification.isSupported()) {
       new Notification({ title, body }).show()
     }
     return { ok: true }
   })
 
-  ipcMain.handle('toggle-always-on-top', async (_event, value) => {
+  ipcMain.handle('toggle-always-on-top', async (_event, value: boolean) => {
     store.set('alwaysOnTop', value)
-    if (mainWindow) mainWindow.setAlwaysOnTop(value)
+    mainWindow?.setAlwaysOnTop(value)
     return { ok: true }
   })
 
-  ipcMain.handle('update-tray-icon', async (_event, state) => {
+  ipcMain.handle('update-tray-icon', async (_event, state: string) => {
     if (tray && TRAY_ICONS[state]) {
       tray.setImage(TRAY_ICONS[state]())
     }
@@ -193,8 +195,6 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle('request-camera-permission', async () => {
-    // Permission is auto-granted via setPermissionRequestHandler.
-    // Return granted so renderer can proceed.
     return 'granted'
   })
 
@@ -202,23 +202,20 @@ function registerIpcHandlers() {
     return store.store
   })
 
-  ipcMain.handle('save-settings', async (_event, settings) => {
-    for (const [key, value] of Object.entries(settings)) {
+  ipcMain.handle('save-settings', async (_event, settings: Partial<StoreSchema>) => {
+    for (const [key, value] of Object.entries(settings) as [keyof StoreSchema, StoreSchema[keyof StoreSchema]][]) {
       store.set(key, value)
     }
     if ('alwaysOnTop' in settings && mainWindow) {
-      mainWindow.setAlwaysOnTop(settings.alwaysOnTop)
+      mainWindow.setAlwaysOnTop(settings.alwaysOnTop!)
     }
     if ('startAtLogin' in settings) {
-      applyStartAtLogin(settings.startAtLogin)
+      applyStartAtLogin(settings.startAtLogin!)
     }
-    // Reset deduplication so the new time can fire even on the same day
     if ('summaryTime' in settings) {
       store.set('lastSummaryDate', null)
     }
-    if (mainWindow) {
-      mainWindow.webContents.send('settings-changed', store.store)
-    }
+    mainWindow?.webContents.send('settings-changed', store.store)
     return { ok: true }
   })
 
@@ -226,21 +223,22 @@ function registerIpcHandlers() {
     return storage.readAll()
   })
 
-  ipcMain.handle('get-summary', async (_event, date) => {
-    const today = date || localDateString()
-    const session = storage.getSession(today)
+  ipcMain.handle('get-summary', async (_event, date?: string) => {
+    const today = date ?? localDateString()
+    const sess = storage.getSession(today)
     const allSessions = storage.readAll()
     const streak = computeStreak(allSessions)
-    return {
+    const payload: SummaryData = {
       date: today,
-      noseSeconds: (session && session.noseBreathingSeconds) || 0,
-      mouthSeconds: (session && session.mouthBreathingSeconds) || 0,
+      noseSeconds: sess?.noseBreathingSeconds ?? 0,
+      mouthSeconds: sess?.mouthBreathingSeconds ?? 0,
       streak
     }
+    return payload
   })
 }
 
-function applyStartAtLogin(enabled) {
+function applyStartAtLogin(enabled: boolean): void {
   app.setLoginItemSettings({
     openAtLogin: enabled,
     openAsHidden: true
@@ -257,35 +255,26 @@ app.whenReady().then(() => {
 
   startScheduler(store, () => mainWindow, storage)
 
-  // Show window on first launch
-  if (mainWindow) {
-    mainWindow.show()
-    mainWindow.focus()
-  }
+  mainWindow?.show()
+  mainWindow?.focus()
 })
 
 app.on('before-quit', () => {
-  app.isQuitting = true
-  // Final synchronous session save
+  appState.isQuitting = true
   if (lastSessionPayload) {
     try {
       storage.saveSession(lastSessionPayload)
-    } catch (e) {
+    } catch {
       // best effort
     }
   }
 })
 
 app.on('window-all-closed', () => {
-  // On macOS, keep app running in tray even with no windows
-  if (process.platform !== 'darwin') {
-    // Keep running — tray is still active
-  }
+  // Keep running — tray is still active
 })
 
 app.on('activate', () => {
-  if (mainWindow) {
-    mainWindow.show()
-    mainWindow.focus()
-  }
+  mainWindow?.show()
+  mainWindow?.focus()
 })

@@ -1,15 +1,20 @@
-'use strict'
+import './styles.css'
+import type { AppState, CalibrationState } from '../../types/state'
+import type { StoreSchema, SummaryData } from '../../types/session'
+import { initAuth, signIn, signUp, signOut, syncSession, authState } from './auth'
+import { isSupabaseConfigured } from './supabase'
+
+const FREE_DAILY_LIMIT_SECONDS = 600 // 10 minutes for free tier
+let limitReached = false
 
 // ── State ─────────────────────────────────────────────────────────────────────
-const state = {
+const state: AppState = {
   mouthOpen: false,
   faceDetected: false,
   paused: true,
   noFaceTimer: null,
   noseSeconds: 0,
   mouthSeconds: 0,
-  // Seconds already stored from earlier app sessions today (not shown in UI,
-  // but added when saving so the daily total accumulates across restarts).
   baseNoseSeconds: 0,
   baseMouthSeconds: 0,
   sessionStart: new Date().toISOString(),
@@ -20,31 +25,31 @@ const state = {
 }
 
 // Rolling buffer for smoothing (3-frame average)
-const ratioBuffer = []
+const ratioBuffer: number[] = []
 const BUFFER_SIZE = 3
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
-const videoEl         = document.getElementById('video')
-const statusDot       = document.getElementById('status-dot')
-const stateIndicator  = document.getElementById('state-indicator')
-const stateEmoji      = document.getElementById('state-emoji')
-const stateLabel      = document.getElementById('state-label')
-const noseTimeEl      = document.getElementById('nose-time')
-const mouthTimeEl     = document.getElementById('mouth-time')
-const ratioFill       = document.getElementById('ratio-fill')
-const nosePctLabel    = document.getElementById('nose-pct-label')
-const mouthPctLabel   = document.getElementById('mouth-pct-label')
-const statusBar       = document.getElementById('status-bar')
-
-// Overlays
-const onboardingEl    = document.getElementById('onboarding')
-const calibrationEl   = document.getElementById('calibration-modal')
-const summaryEl       = document.getElementById('summary-modal')
-const settingsPanel   = document.getElementById('settings-panel')
+const videoEl         = document.getElementById('video') as HTMLVideoElement
+const statusDot       = document.getElementById('status-dot') as HTMLDivElement
+const stateIndicator  = document.getElementById('state-indicator') as HTMLDivElement
+const stateEmoji      = document.getElementById('state-emoji') as HTMLDivElement
+const stateLabel      = document.getElementById('state-label') as HTMLDivElement
+const noseTimeEl      = document.getElementById('nose-time') as HTMLDivElement
+const mouthTimeEl     = document.getElementById('mouth-time') as HTMLDivElement
+const ratioFill       = document.getElementById('ratio-fill') as HTMLDivElement
+const nosePctLabel    = document.getElementById('nose-pct-label') as HTMLSpanElement
+const mouthPctLabel   = document.getElementById('mouth-pct-label') as HTMLSpanElement
+const statusBar       = document.getElementById('status-bar') as HTMLDivElement
+const onboardingEl    = document.getElementById('onboarding') as HTMLDivElement
+const calibrationEl   = document.getElementById('calibration-modal') as HTMLDivElement
+const summaryEl       = document.getElementById('summary-modal') as HTMLDivElement
+const settingsPanel   = document.getElementById('settings-panel') as HTMLDivElement
+const authModal       = document.getElementById('auth-modal') as HTMLDivElement
+const limitOverlay    = document.getElementById('limit-overlay') as HTMLDivElement
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function todayString() {
+function todayString(): string {
   const now = new Date()
   const y = now.getFullYear()
   const m = String(now.getMonth() + 1).padStart(2, '0')
@@ -52,7 +57,7 @@ function todayString() {
   return `${y}-${m}-${d}`
 }
 
-function formatTime(totalSeconds) {
+function formatTime(totalSeconds: number): string {
   const s = Math.floor(totalSeconds)
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
@@ -62,13 +67,12 @@ function formatTime(totalSeconds) {
 
 // ── MediaPipe FaceMesh ────────────────────────────────────────────────────────
 
-// Landmark indices we care about
 const LM = { UPPER_LIP_TOP: 13, LOWER_LIP_BOT: 14, FOREHEAD: 10, CHIN: 152 }
 
-let faceMesh = null
+let faceMesh: FaceMesh | null = null
 let lastSendTime = 0
 
-async function initMediaPipe() {
+async function initMediaPipe(): Promise<boolean> {
   if (typeof FaceMesh === 'undefined') {
     setStatus('FaceMesh not loaded — check internet connection')
     return false
@@ -90,12 +94,9 @@ async function initMediaPipe() {
 
   faceMesh.onResults(onFaceMeshResults)
 
-  // Explicitly wait for WASM to download and compile before proceeding.
-  // Without this, the first send() triggers lazy loading and calibration
-  // collects zero samples because results don't arrive for 10-30s.
   try {
     await faceMesh.initialize()
-  } catch (e) {
+  } catch {
     setStatus('Detector init failed — check internet connection')
     return false
   }
@@ -106,14 +107,13 @@ async function initMediaPipe() {
   return true
 }
 
-function startDetectionLoop() {
-  function loop() {
+function startDetectionLoop(): void {
+  function loop(): void {
     requestAnimationFrame(loop)
     if (!state.cameraReady || !state.mediapipeReady || !faceMesh) return
     const now = Date.now()
     if (now - lastSendTime >= 200) {
       lastSendTime = now
-      // Only send when the video element has actual frame data
       if (videoEl.readyState >= 2) {
         faceMesh.send({ image: videoEl }).catch(() => {})
       }
@@ -122,15 +122,15 @@ function startDetectionLoop() {
   loop()
 }
 
-function computeMouthRatio(landmarks) {
-  const get = (i) => landmarks[i]
-  const lipGap   = Math.abs(get(LM.LOWER_LIP_BOT).y - get(LM.UPPER_LIP_TOP).y)
-  const faceH    = Math.abs(get(LM.CHIN).y - get(LM.FOREHEAD).y)
+function computeMouthRatio(landmarks: NormalizedLandmarkList): number {
+  const get = (i: number) => landmarks[i]
+  const lipGap = Math.abs(get(LM.LOWER_LIP_BOT).y - get(LM.UPPER_LIP_TOP).y)
+  const faceH  = Math.abs(get(LM.CHIN).y - get(LM.FOREHEAD).y)
   if (faceH < 0.001) return 0
   return lipGap / faceH
 }
 
-function classifyMouth(landmarks) {
+function classifyMouth(landmarks: NormalizedLandmarkList): boolean {
   const ratio = computeMouthRatio(landmarks)
   ratioBuffer.push(ratio)
   if (ratioBuffer.length > BUFFER_SIZE) ratioBuffer.shift()
@@ -138,7 +138,7 @@ function classifyMouth(landmarks) {
   return avg > state.threshold
 }
 
-function onFaceMeshResults(results) {
+function onFaceMeshResults(results: FaceMeshResults): void {
   if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
     handleNoFace()
     return
@@ -148,7 +148,6 @@ function onFaceMeshResults(results) {
   state.mouthOpen = classifyMouth(landmarks)
   updateStateUI()
 
-  // Calibration live display
   if (calibrationState.active) {
     const ratio = computeMouthRatio(landmarks)
     const el = document.getElementById('calibration-ratio-display')
@@ -159,7 +158,7 @@ function onFaceMeshResults(results) {
   }
 }
 
-function handleNoFace() {
+function handleNoFace(): void {
   updateStatusDot('no-face')
   if (state.faceDetected) {
     state.faceDetected = false
@@ -175,7 +174,7 @@ function handleNoFace() {
   }
 }
 
-function handleFaceDetected() {
+function handleFaceDetected(): void {
   if (state.noFaceTimer) {
     clearTimeout(state.noFaceTimer)
     state.noFaceTimer = null
@@ -188,7 +187,7 @@ function handleFaceDetected() {
 
 // ── UI updates ────────────────────────────────────────────────────────────────
 
-function updateStateUI() {
+function updateStateUI(): void {
   if (state.mouthOpen) {
     stateIndicator.className = 'state-mouth'
     stateEmoji.textContent = '👄'
@@ -202,21 +201,21 @@ function updateStateUI() {
   }
 }
 
-function setStateNone() {
+function setStateNone(): void {
   stateIndicator.className = 'state-none'
   stateEmoji.textContent = '👃'
   stateLabel.textContent = 'PAUSED'
 }
 
-function updateStatusDot(mode) {
-  statusDot.className = mode // 'detecting' | 'no-face' | ''
+function updateStatusDot(mode: string): void {
+  statusDot.className = mode
 }
 
-function setStatus(text) {
+function setStatus(text: string): void {
   statusBar.textContent = text
 }
 
-function updateCounterUI() {
+function updateCounterUI(): void {
   noseTimeEl.textContent  = formatTime(state.noseSeconds)
   mouthTimeEl.textContent = formatTime(state.mouthSeconds)
 
@@ -245,7 +244,19 @@ setInterval(() => {
 
   updateCounterUI()
 
-  // Save to main every 30 seconds
+  // Free-tier daily limit gate
+  if (!limitReached && !authState.isPro) {
+    const totalToday = state.baseNoseSeconds + state.baseMouthSeconds +
+                       state.noseSeconds     + state.mouthSeconds
+    if (totalToday >= FREE_DAILY_LIMIT_SECONDS) {
+      limitReached = true
+      state.paused = true
+      persistSession()
+      showLimitOverlay()
+      return
+    }
+  }
+
   saveDebounceCount++
   if (saveDebounceCount >= 30) {
     saveDebounceCount = 0
@@ -253,26 +264,35 @@ setInterval(() => {
   }
 }, 1000)
 
-function persistSession() {
-  window.electronAPI.saveSession({
+function persistSession(): void {
+  const payload = {
     date: todayString(),
     sessionStart: state.sessionStart,
     mouthBreathingSeconds: state.baseMouthSeconds + state.mouthSeconds,
-    noseBreathingSeconds: state.baseNoseSeconds + state.noseSeconds
-  })
+    noseBreathingSeconds:  state.baseNoseSeconds  + state.noseSeconds
+  }
+  window.electronAPI.saveSession(payload)
+  syncSession(payload).catch(() => {}) // cloud sync — fire and forget
+}
+
+function showLimitOverlay(): void {
+  limitOverlay.classList.remove('hidden')
+}
+
+function hideLimitOverlay(): void {
+  limitOverlay.classList.add('hidden')
 }
 
 // ── Camera ────────────────────────────────────────────────────────────────────
 
-async function startCamera() {
+async function startCamera(): Promise<boolean> {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' }
     })
     videoEl.srcObject = stream
 
-    // Wait for video metadata so frames are available before we proceed
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       videoEl.onloadedmetadata = () => {
         videoEl.play().then(resolve).catch(reject)
       }
@@ -282,7 +302,7 @@ async function startCamera() {
     state.cameraReady = true
     return true
   } catch (err) {
-    setStatus('Camera unavailable: ' + err.message)
+    setStatus('Camera unavailable: ' + (err as Error).message)
     updateStatusDot('')
     return false
   }
@@ -290,29 +310,28 @@ async function startCamera() {
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
-async function loadSettings() {
+async function loadSettings(): Promise<StoreSchema> {
   const s = await window.electronAPI.getSettings()
   state.settings = s
-  state.threshold = s.threshold || 0.04
+  state.threshold = s.threshold ?? 0.04
 
-  // Apply to UI controls
-  document.getElementById('setting-always-on-top').checked = !!s.alwaysOnTop
-  document.getElementById('setting-start-at-login').checked = !!s.startAtLogin
-  document.getElementById('setting-summary-time').value = s.summaryTime || '18:00'
-  const thresholdEl = document.getElementById('setting-threshold')
-  thresholdEl.value = s.threshold || 0.04
-  document.getElementById('threshold-display').textContent =
+  ;(document.getElementById('setting-always-on-top') as HTMLInputElement).checked = !!s.alwaysOnTop
+  ;(document.getElementById('setting-start-at-login') as HTMLInputElement).checked = !!s.startAtLogin
+  ;(document.getElementById('setting-summary-time') as HTMLInputElement).value = s.summaryTime ?? '18:00'
+  const thresholdEl = document.getElementById('setting-threshold') as HTMLInputElement
+  thresholdEl.value = String(s.threshold ?? 0.04)
+  ;(document.getElementById('threshold-display') as HTMLSpanElement).textContent =
     parseFloat(thresholdEl.value).toFixed(3)
 
   return s
 }
 
-function bindSettingsEvents() {
-  const alwaysOnTopEl   = document.getElementById('setting-always-on-top')
-  const startAtLoginEl  = document.getElementById('setting-start-at-login')
-  const summaryTimeEl   = document.getElementById('setting-summary-time')
-  const thresholdEl     = document.getElementById('setting-threshold')
-  const thresholdDisplay = document.getElementById('threshold-display')
+function bindSettingsEvents(): void {
+  const alwaysOnTopEl    = document.getElementById('setting-always-on-top') as HTMLInputElement
+  const startAtLoginEl   = document.getElementById('setting-start-at-login') as HTMLInputElement
+  const summaryTimeEl    = document.getElementById('setting-summary-time') as HTMLInputElement
+  const thresholdEl      = document.getElementById('setting-threshold') as HTMLInputElement
+  const thresholdDisplay = document.getElementById('threshold-display') as HTMLSpanElement
 
   alwaysOnTopEl.addEventListener('change', () => {
     window.electronAPI.saveSettings({ alwaysOnTop: alwaysOnTopEl.checked })
@@ -333,30 +352,28 @@ function bindSettingsEvents() {
     window.electronAPI.saveSettings({ threshold: val })
   })
 
-  // Open / close settings panel
-  document.getElementById('settings-btn').addEventListener('click', () => {
+  document.getElementById('settings-btn')!.addEventListener('click', () => {
     settingsPanel.classList.remove('hidden')
   })
 
-  document.getElementById('settings-close-btn').addEventListener('click', () => {
+  document.getElementById('settings-close-btn')!.addEventListener('click', () => {
     settingsPanel.classList.add('hidden')
   })
 
-  document.getElementById('view-summary-btn').addEventListener('click', async () => {
+  document.getElementById('view-summary-btn')!.addEventListener('click', async () => {
     settingsPanel.classList.add('hidden')
     const data = await window.electronAPI.getSummary()
     showSummaryModal(data)
   })
 
-  document.getElementById('recalibrate-btn').addEventListener('click', () => {
+  document.getElementById('recalibrate-btn')!.addEventListener('click', () => {
     settingsPanel.classList.add('hidden')
     showCalibration()
   })
 
-  // Listen for settings pushed from main
   window.electronAPI.onSettingsChanged((newSettings) => {
     state.settings = newSettings
-    state.threshold = newSettings.threshold || 0.04
+    state.threshold = newSettings.threshold ?? 0.04
     alwaysOnTopEl.checked  = !!newSettings.alwaysOnTop
     startAtLoginEl.checked = !!newSettings.startAtLogin
   })
@@ -364,7 +381,13 @@ function bindSettingsEvents() {
 
 // ── Tutorial ──────────────────────────────────────────────────────────────────
 
-const TUTORIAL_STEPS = [
+interface TutorialStep {
+  icon: string
+  title: string
+  body: string
+}
+
+const TUTORIAL_STEPS: TutorialStep[] = [
   {
     icon: '📹',
     title: 'Camera Feed',
@@ -383,34 +406,34 @@ const TUTORIAL_STEPS = [
   {
     icon: '⚙️',
     title: 'Settings & Summary',
-    body: 'Tap the gear icon (top-right) to adjust detection sensitivity, set a daily summary reminder, and view today\'s stats anytime.'
+    body: "Tap the gear icon (top-right) to adjust detection sensitivity, set a daily summary reminder, and view today's stats anytime."
   }
 ]
 
 let tutorialStepIndex = 0
 
-function renderTutorialStep() {
+function renderTutorialStep(): void {
   const step = TUTORIAL_STEPS[tutorialStepIndex]
-  document.getElementById('tutorial-icon').textContent = step.icon
-  document.getElementById('tutorial-title').textContent = step.title
-  document.getElementById('tutorial-body').textContent = step.body
+  document.getElementById('tutorial-icon')!.textContent = step.icon
+  document.getElementById('tutorial-title')!.textContent = step.title
+  document.getElementById('tutorial-body')!.textContent = step.body
 
   document.querySelectorAll('.tut-dot').forEach((dot, i) => {
     dot.className = 'tut-dot' + (i === tutorialStepIndex ? ' active' : '')
   })
 
-  const nextBtn = document.getElementById('tutorial-next-btn')
+  const nextBtn = document.getElementById('tutorial-next-btn') as HTMLButtonElement
   nextBtn.textContent = tutorialStepIndex === TUTORIAL_STEPS.length - 1 ? 'Done ✓' : 'Next →'
 }
 
-function finishTutorial() {
-  document.getElementById('tutorial-overlay').classList.add('hidden')
+function finishTutorial(): void {
+  document.getElementById('tutorial-overlay')!.classList.add('hidden')
   window.electronAPI.saveSettings({ tutorialSeen: true })
   if (!state.settings.calibrated) showCalibration()
 }
 
-function initTutorial() {
-  document.getElementById('tutorial-next-btn').addEventListener('click', () => {
+function initTutorial(): void {
+  document.getElementById('tutorial-next-btn')!.addEventListener('click', () => {
     tutorialStepIndex++
     if (tutorialStepIndex >= TUTORIAL_STEPS.length) {
       finishTutorial()
@@ -419,23 +442,23 @@ function initTutorial() {
     }
   })
 
-  document.getElementById('tutorial-skip-btn').addEventListener('click', () => {
+  document.getElementById('tutorial-skip-btn')!.addEventListener('click', () => {
     finishTutorial()
   })
 }
 
-function showTutorial() {
+function showTutorial(): void {
   tutorialStepIndex = 0
   renderTutorialStep()
-  document.getElementById('tutorial-overlay').classList.remove('hidden')
+  document.getElementById('tutorial-overlay')!.classList.remove('hidden')
 }
 
 // ── Onboarding ────────────────────────────────────────────────────────────────
 
-function showOnboarding() {
+function showOnboarding(): void {
   onboardingEl.classList.remove('hidden')
 
-  document.getElementById('ob-allow-btn').addEventListener('click', async () => {
+  document.getElementById('ob-allow-btn')!.addEventListener('click', async () => {
     onboardingEl.classList.add('hidden')
     const granted = await window.electronAPI.requestCameraPermission()
     if (granted === 'granted') {
@@ -456,7 +479,7 @@ function showOnboarding() {
     }
   }, { once: true })
 
-  document.getElementById('ob-skip-btn').addEventListener('click', () => {
+  document.getElementById('ob-skip-btn')!.addEventListener('click', () => {
     onboardingEl.classList.add('hidden')
     setStatus('Camera not enabled — click ⚙ to set up')
   }, { once: true })
@@ -464,46 +487,46 @@ function showOnboarding() {
 
 // ── Calibration ───────────────────────────────────────────────────────────────
 
-const calibrationState = {
+const calibrationState: CalibrationState = {
   active: false,
   collecting: false,
   samples: [],
-  step: 0  // 0=idle, 1=closed, 2=open
+  step: 0
 }
 
-function showCalibration() {
+function showCalibration(): void {
   calibrationEl.classList.remove('hidden')
   calibrationState.active = true
   calibrationState.step = 0
   calibrationState.samples = []
 
   updateCalDots(0)
-  document.getElementById('calibration-step-label').textContent = 'Press Start to begin'
-  document.getElementById('calibration-ratio-display').textContent = '—'
+  document.getElementById('calibration-step-label')!.textContent = 'Press Start to begin'
+  document.getElementById('calibration-ratio-display')!.textContent = '—'
 }
 
-function updateCalDots(step) {
+function updateCalDots(step: number): void {
   for (let i = 0; i < 3; i++) {
-    const dot = document.getElementById(`cal-dot-${i}`)
+    const dot = document.getElementById(`cal-dot-${i}`)!
     dot.className = 'cal-dot' + (i < step ? ' done' : '') + (i === step ? ' active' : '')
   }
 }
 
-document.getElementById('cal-start-btn').addEventListener('click', () => {
+document.getElementById('cal-start-btn')!.addEventListener('click', () => {
   if (calibrationState.step === 0) {
     runCalStep1()
   }
 })
 
-document.getElementById('cal-skip-btn').addEventListener('click', () => {
+document.getElementById('cal-skip-btn')!.addEventListener('click', () => {
   calibrationEl.classList.add('hidden')
   calibrationState.active = false
   window.electronAPI.saveSettings({ calibrated: true })
 })
 
-async function runCalStep1() {
-  const btn   = document.getElementById('cal-start-btn')
-  const label = document.getElementById('calibration-step-label')
+async function runCalStep1(): Promise<void> {
+  const btn   = document.getElementById('cal-start-btn') as HTMLButtonElement
+  const label = document.getElementById('calibration-step-label')!
 
   calibrationState.step = 1
   updateCalDots(1)
@@ -526,17 +549,16 @@ async function runCalStep1() {
   calibrationState.collecting = false
   const openAvg = avg(calibrationState.samples)
 
-  // Set threshold at midpoint
   const threshold = parseFloat(((closedAvg + openAvg) / 2).toFixed(4))
   const clamped   = Math.min(Math.max(threshold, 0.01), 0.12)
 
   state.threshold = clamped
-  document.getElementById('setting-threshold').value = clamped
-  document.getElementById('threshold-display').textContent = clamped.toFixed(3)
+  ;(document.getElementById('setting-threshold') as HTMLInputElement).value = String(clamped)
+  ;(document.getElementById('threshold-display') as HTMLSpanElement).textContent = clamped.toFixed(3)
   await window.electronAPI.saveSettings({ threshold: clamped, calibrated: true })
 
   calibrationState.active = false
-  calibrationState.step = -1  // -1 = done; prevents outer listener from re-triggering
+  calibrationState.step = -1
   updateCalDots(3)
   label.textContent = `Done! Threshold set to ${clamped.toFixed(4)}`
   btn.textContent = 'Close'
@@ -548,16 +570,14 @@ async function runCalStep1() {
   }, { once: true })
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
-function avg(arr)  { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0 }
+function sleep(ms: number): Promise<void> { return new Promise(r => setTimeout(r, ms)) }
+function avg(arr: number[]): number { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0 }
 
 // ── Daily Summary ─────────────────────────────────────────────────────────────
 
 window.electronAPI.onDailySummaryTrigger(async (data) => {
-  // Save final session first
   persistSession()
 
-  // Show OS notification
   await window.electronAPI.showNotification({
     title: 'Mouth Breather Daily Summary',
     body: buildSummaryBody(data)
@@ -566,7 +586,7 @@ window.electronAPI.onDailySummaryTrigger(async (data) => {
   showSummaryModal(data)
 })
 
-function buildSummaryBody({ noseSeconds, mouthSeconds }) {
+function buildSummaryBody({ noseSeconds, mouthSeconds }: Pick<SummaryData, 'noseSeconds' | 'mouthSeconds'>): string {
   const total = noseSeconds + mouthSeconds
   if (total === 0) return 'No data recorded today.'
   const nosePct = Math.round((noseSeconds / total) * 100)
@@ -575,26 +595,23 @@ function buildSummaryBody({ noseSeconds, mouthSeconds }) {
     : `${nosePct}% nose / ${100 - nosePct}% mouth — keep it up!`
 }
 
-function showSummaryModal(data) {
+function showSummaryModal(data: SummaryData): void {
   const { date, noseSeconds, mouthSeconds, streak } = data
   const total    = noseSeconds + mouthSeconds
   const nosePct  = total > 0 ? Math.round((noseSeconds / total) * 100) : 0
   const mouthPct = 100 - nosePct
 
-  document.getElementById('summary-date').textContent = date
-  document.getElementById('summary-total').textContent =
-    `Total tracked: ${formatTime(total)}`
-  document.getElementById('legend-nose-pct').textContent  = nosePct  + '% Nose'
-  document.getElementById('legend-mouth-pct').textContent = mouthPct + '% Mouth'
+  document.getElementById('summary-date')!.textContent = date
+  document.getElementById('summary-total')!.textContent = `Total tracked: ${formatTime(total)}`
+  document.getElementById('legend-nose-pct')!.textContent  = nosePct  + '% Nose'
+  document.getElementById('legend-mouth-pct')!.textContent = mouthPct + '% Mouth'
 
-  if (streak > 0) {
-    document.getElementById('summary-streak').textContent =
-      `🔥 ${streak} day${streak !== 1 ? 's' : ''} in a row with <20% mouth breathing`
-  } else {
-    document.getElementById('summary-streak').textContent = ''
-  }
+  const streakEl = document.getElementById('summary-streak')!
+  streakEl.textContent = streak > 0
+    ? `🔥 ${streak} day${streak !== 1 ? 's' : ''} in a row with <20% mouth breathing`
+    : ''
 
-  const msgEl = document.getElementById('summary-message')
+  const msgEl = document.getElementById('summary-message')!
   if (nosePct >= 80) {
     msgEl.textContent = 'Great day! 🎉'
     msgEl.className = ''
@@ -603,22 +620,21 @@ function showSummaryModal(data) {
     msgEl.className = 'warn'
   }
 
-  drawDonut(document.getElementById('donut-chart'), nosePct, mouthPct)
+  drawDonut(document.getElementById('donut-chart') as HTMLCanvasElement, nosePct, mouthPct)
   summaryEl.classList.remove('hidden')
 
-  // Reset daily counters after summary
   state.noseSeconds  = 0
   state.mouthSeconds = 0
   state.sessionStart = new Date().toISOString()
   updateCounterUI()
 }
 
-document.getElementById('summary-close-btn').addEventListener('click', () => {
+document.getElementById('summary-close-btn')!.addEventListener('click', () => {
   summaryEl.classList.add('hidden')
 })
 
-function drawDonut(canvas, nosePct, mouthPct) {
-  const ctx  = canvas.getContext('2d')
+function drawDonut(canvas: HTMLCanvasElement, nosePct: number, mouthPct: number): void {
+  const ctx  = canvas.getContext('2d')!
   const size = canvas.width
   const cx   = size / 2
   const cy   = size / 2
@@ -630,14 +646,12 @@ function drawDonut(canvas, nosePct, mouthPct) {
 
   ctx.clearRect(0, 0, size, size)
 
-  // Background ring
   ctx.beginPath()
   ctx.arc(cx, cy, r, 0, TAU)
   ctx.strokeStyle = '#1e1e1e'
   ctx.lineWidth = lw
   ctx.stroke()
 
-  // Mouth arc (drawn first so nose overlaps at join)
   if (mouthPct > 0) {
     ctx.beginPath()
     ctx.arc(cx, cy, r, start + noseFrac * TAU, start + TAU)
@@ -647,7 +661,6 @@ function drawDonut(canvas, nosePct, mouthPct) {
     ctx.stroke()
   }
 
-  // Nose arc
   if (nosePct > 0) {
     ctx.beginPath()
     ctx.arc(cx, cy, r, start, start + noseFrac * TAU)
@@ -657,7 +670,6 @@ function drawDonut(canvas, nosePct, mouthPct) {
     ctx.stroke()
   }
 
-  // Center text
   ctx.fillStyle = '#e5e5e5'
   ctx.font = `bold ${Math.round(size * 0.17)}px system-ui`
   ctx.textAlign = 'center'
@@ -668,37 +680,171 @@ function drawDonut(canvas, nosePct, mouthPct) {
   ctx.fillText('nose', cx, cy + size * 0.1)
 }
 
-// ── Restore today's session data ──────────────────────────────────────────────
-// Load previously-stored seconds into base fields so the daily total accumulates
-// across restarts, but the visible counters always start at 0.
+// ── Auth UI ───────────────────────────────────────────────────────────────
 
-async function restoreSession() {
-  const session = await window.electronAPI.getSession(todayString())
-  if (session) {
-    state.baseNoseSeconds  = session.noseBreathingSeconds  || 0
-    state.baseMouthSeconds = session.mouthBreathingSeconds || 0
+function updateAuthButton(): void {
+  const btn = document.getElementById('auth-btn') as HTMLButtonElement
+  if (!isSupabaseConfigured) { btn.style.display = 'none'; return }
+  if (authState.user) {
+    btn.textContent = '☁️'
+    btn.title = `${authState.user.email} (${authState.isPro ? 'Pro' : 'Free'})`
+    btn.classList.add('connected')
+  } else {
+    btn.textContent = '👤'
+    btn.title = 'Sign in for cloud sync'
+    btn.classList.remove('connected')
+  }
+}
+
+function openAuthModal(): void {
+  const signedOut = document.getElementById('auth-signedout')!
+  const signedIn  = document.getElementById('auth-signedin')!
+
+  if (authState.user) {
+    signedOut.classList.add('hidden')
+    signedIn.classList.remove('hidden')
+    document.getElementById('auth-user-email')!.textContent = authState.user.email ?? ''
+    const badge = document.getElementById('auth-plan-badge')!
+    if (authState.isPro) {
+      badge.textContent = 'Pro'
+      badge.className = 'pro'
+    } else {
+      badge.textContent = 'Free'
+      badge.className = ''
+    }
+  } else {
+    signedOut.classList.remove('hidden')
+    signedIn.classList.add('hidden')
+  }
+
+  authModal.classList.remove('hidden')
+}
+
+function initAuthUI(): void {
+  if (!isSupabaseConfigured) return
+
+  const authBtn    = document.getElementById('auth-btn')!
+  const closeBtn   = document.getElementById('auth-close-btn')!
+  const submitBtn  = document.getElementById('auth-submit-btn') as HTMLButtonElement
+  const signoutBtn = document.getElementById('auth-signout-btn')!
+  const tabSignIn  = document.getElementById('tab-signin')!
+  const tabSignUp  = document.getElementById('tab-signup')!
+  const emailEl    = document.getElementById('auth-email') as HTMLInputElement
+  const passEl     = document.getElementById('auth-password') as HTMLInputElement
+  const errorEl    = document.getElementById('auth-error')!
+
+  let isSignUp = false
+
+  function setTab(signup: boolean): void {
+    isSignUp = signup
+    tabSignIn.classList.toggle('active', !signup)
+    tabSignUp.classList.toggle('active',  signup)
+    submitBtn.textContent = signup ? 'Create Account' : 'Sign In'
+    errorEl.classList.add('hidden')
+  }
+
+  tabSignIn.addEventListener('click', () => setTab(false))
+  tabSignUp.addEventListener('click', () => setTab(true))
+
+  submitBtn.addEventListener('click', async () => {
+    const email = emailEl.value.trim()
+    const pass  = passEl.value
+    if (!email || !pass) return
+
+    submitBtn.disabled = true
+    submitBtn.textContent = isSignUp ? 'Creating…' : 'Signing in…'
+    errorEl.classList.add('hidden')
+
+    const err = isSignUp ? await signUp(email, pass) : await signIn(email, pass)
+
+    if (err) {
+      errorEl.textContent = err
+      errorEl.classList.remove('hidden')
+      submitBtn.disabled = false
+      submitBtn.textContent = isSignUp ? 'Create Account' : 'Sign In'
+    } else {
+      if (isSignUp) {
+        errorEl.textContent = 'Check your email to confirm your account.'
+        errorEl.style.color = 'var(--nose-color)'
+        errorEl.classList.remove('hidden')
+      } else {
+        authModal.classList.add('hidden')
+      }
+      submitBtn.disabled = false
+      submitBtn.textContent = isSignUp ? 'Create Account' : 'Sign In'
+    }
+  })
+
+  signoutBtn.addEventListener('click', async () => {
+    await signOut()
+    authModal.classList.add('hidden')
+  })
+
+  authBtn.addEventListener('click', openAuthModal)
+  closeBtn.addEventListener('click', () => authModal.classList.add('hidden'))
+
+  // Dismiss limit overlay
+  document.getElementById('limit-dismiss-btn')!.addEventListener('click', hideLimitOverlay)
+  document.getElementById('limit-upgrade-btn')!.addEventListener('click', () => {
+    hideLimitOverlay()
+    if (!authState.user) {
+      openAuthModal()
+    } else {
+      // Phase 2: Stripe checkout goes here
+      setStatus('Pro subscriptions coming soon!')
+    }
+  })
+}
+
+// ── Restore today's session ───────────────────────────────────────────────────
+
+async function restoreSession(): Promise<void> {
+  const sess = await window.electronAPI.getSession(todayString())
+  if (sess) {
+    state.baseNoseSeconds  = sess.noseBreathingSeconds  ?? 0
+    state.baseMouthSeconds = sess.mouthBreathingSeconds ?? 0
+  }
+  // Check if already at today's free limit
+  if (!authState.isPro) {
+    const total = state.baseNoseSeconds + state.baseMouthSeconds
+    if (total >= FREE_DAILY_LIMIT_SECONDS) {
+      limitReached = true
+      state.paused = true
+      setTimeout(showLimitOverlay, 800)
+    }
   }
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
-async function boot() {
+async function boot(): Promise<void> {
   setStatus('Initializing…')
 
   const settings = await loadSettings()
   bindSettingsEvents()
   initTutorial()
+  initAuthUI()
 
+  // Auth must resolve before restoreSession so isPro is known for limit check
+  await initAuth((authUpdate) => {
+    Object.assign(authState, authUpdate)
+    updateAuthButton()
+    // If user just upgraded to Pro, clear any active limit gate
+    if (authUpdate.isPro && limitReached) {
+      limitReached = false
+      state.paused = false
+      hideLimitOverlay()
+    }
+  })
+
+  updateAuthButton()
   await restoreSession()
 
-  const needsOnboarding = !settings.cameraPermission
-  if (needsOnboarding) {
+  if (!settings.cameraPermission) {
     showOnboarding()
   } else {
     const cameraOk = await startCamera()
     if (!cameraOk) {
-      // Camera failed even though permission was previously saved.
-      // Clear the flag so onboarding re-runs next launch.
       await window.electronAPI.saveSettings({ cameraPermission: false })
       showOnboarding()
       return

@@ -11,14 +11,49 @@
         content="default-src 'self';
                  script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'wasm-unsafe-eval';
                  style-src 'self' 'unsafe-inline';
-                 connect-src https://cdn.jsdelivr.net;
+                 connect-src https://cdn.jsdelivr.net https://*.supabase.co;
                  img-src 'self' data: blob:;
                  media-src 'self' blob:;
                  worker-src blob: https://cdn.jsdelivr.net;">
   <title>Mouth Breather</title>
-  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+<!-- ── Auth modal ─────────────────────────────────────────────────────── -->
+<div id="auth-modal" class="overlay hidden">
+  <div id="auth-card">
+    <!-- Signed-out view -->
+    <div id="auth-signedout">
+      <div id="auth-tabs">
+        <button class="auth-tab active" id="tab-signin">Sign In</button>
+        <button class="auth-tab" id="tab-signup">Create Account</button>
+      </div>
+      <p id="auth-info">Sign in to enable cloud sync across devices.</p>
+      <div id="auth-error" class="hidden"></div>
+      <input type="email"    id="auth-email"    placeholder="Email"    autocomplete="email">
+      <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password">
+      <button class="btn btn-primary" id="auth-submit-btn" style="width:100%">Sign In</button>
+    </div>
+    <!-- Signed-in view -->
+    <div id="auth-signedin" class="hidden">
+      <div class="ob-icon" style="font-size:36px">☁️</div>
+      <p id="auth-user-email" style="font-size:13px;color:var(--text-dim)"></p>
+      <p id="auth-plan-badge"></p>
+      <button class="btn btn-secondary" id="auth-signout-btn" style="width:100%">Sign Out</button>
+    </div>
+    <button class="btn btn-ghost" id="auth-close-btn" style="font-size:11px;margin-top:4px">Close</button>
+  </div>
+</div>
+
+<!-- ── Free-tier limit overlay ────────────────────────────────────────── -->
+<div id="limit-overlay" class="overlay hidden">
+  <div class="ob-icon">⏱️</div>
+  <h2>Daily Limit Reached</h2>
+  <p>Free accounts get <strong>10 minutes</strong> of live detection per day.</p>
+  <p style="font-size:11px;color:var(--text-dim)">Sign in and upgrade to Pro for unlimited access + cloud sync.</p>
+  <button class="btn btn-primary" id="limit-upgrade-btn" style="width:100%;max-width:220px">Upgrade to Pro</button>
+  <button class="btn btn-ghost"   id="limit-dismiss-btn" style="font-size:11px">Dismiss</button>
+</div>
 
 <!-- ── Onboarding overlay (first launch) ──────────────────────────────── -->
 <div id="onboarding" class="overlay hidden">
@@ -188,7 +223,10 @@
 <div id="app">
   <div id="top-bar">
     <div id="app-title">Mouth Breather</div>
-    <button id="settings-btn" title="Settings">⚙</button>
+    <div id="top-bar-right">
+      <button id="auth-btn" title="Sign in for cloud sync">👤</button>
+      <button id="settings-btn" title="Settings">⚙</button>
+    </div>
   </div>
 
   <div id="camera-wrap">
@@ -232,10 +270,10 @@
   <div id="status-bar">Initializing…</div>
 </div>
 
-<!-- MediaPipe FaceMesh from CDN — loaded last so DOM is ready -->
+<!-- MediaPipe FaceMesh from CDN — loaded before app script -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js"
         crossorigin="anonymous"></script>
-<script src="app.js"></script>
+<script type="module" src="./src/app.ts"></script>
 
 </body>
 </html>

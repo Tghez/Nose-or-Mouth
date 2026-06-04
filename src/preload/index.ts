@@ -1,9 +1,8 @@
-'use strict'
+import { contextBridge, ipcRenderer } from 'electron'
+import type { ElectronAPI } from '../types/ipc'
 
-const { contextBridge, ipcRenderer } = require('electron')
-
-contextBridge.exposeInMainWorld('electronAPI', {
-  // ── Renderer → Main (request/response) ────────────────────────────────────
+const api: ElectronAPI = {
+  // ── Renderer → Main ──────────────────────────────────────────────────────
   saveSession:             (payload)  => ipcRenderer.invoke('save-session', payload),
   getSession:              (date)     => ipcRenderer.invoke('get-session', date),
   getAllSessions:           ()         => ipcRenderer.invoke('get-all-sessions'),
@@ -15,9 +14,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSettings:            (settings) => ipcRenderer.invoke('save-settings', settings),
   getSummary:              (date)     => ipcRenderer.invoke('get-summary', date),
 
-  // ── Main → Renderer (push events) ─────────────────────────────────────────
+  // ── Main → Renderer (push events) ────────────────────────────────────────
   onDailySummaryTrigger: (cb) => ipcRenderer.on('daily-summary-trigger', (_e, data) => cb(data)),
   onSettingsChanged:     (cb) => ipcRenderer.on('settings-changed', (_e, data) => cb(data)),
 
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
-})
+}
+
+contextBridge.exposeInMainWorld('electronAPI', api)
