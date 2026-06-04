@@ -22,6 +22,9 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
+    server: {
+      sourcemapIgnoreList: (path) => path.includes('@mediapipe')
+    },
     optimizeDeps: {
       exclude: ['@mediapipe/tasks-vision']
     },
