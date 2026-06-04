@@ -717,6 +717,17 @@ function openAuthModal(): void {
 }
 
 function initAuthUI(): void {
+  // Limit overlay buttons must work regardless of Supabase config
+  document.getElementById('limit-dismiss-btn')!.addEventListener('click', hideLimitOverlay)
+  document.getElementById('limit-upgrade-btn')!.addEventListener('click', () => {
+    hideLimitOverlay()
+    if (isSupabaseConfigured && !authState.user) {
+      openAuthModal()
+    } else {
+      setStatus('Pro subscriptions coming soon!')
+    }
+  })
+
   if (!isSupabaseConfigured) return
 
   const authBtn    = document.getElementById('auth-btn')!
@@ -778,18 +789,6 @@ function initAuthUI(): void {
 
   authBtn.addEventListener('click', openAuthModal)
   closeBtn.addEventListener('click', () => authModal.classList.add('hidden'))
-
-  // Dismiss limit overlay
-  document.getElementById('limit-dismiss-btn')!.addEventListener('click', hideLimitOverlay)
-  document.getElementById('limit-upgrade-btn')!.addEventListener('click', () => {
-    hideLimitOverlay()
-    if (!authState.user) {
-      openAuthModal()
-    } else {
-      // Phase 2: Stripe checkout goes here
-      setStatus('Pro subscriptions coming soon!')
-    }
-  })
 }
 
 // ── Restore today's session ───────────────────────────────────────────────────
