@@ -8,7 +8,7 @@ Built as a personal project for my brother-in-law, who is working on improving h
 
 ## What it does
 
-- Watches your face via webcam using [MediaPipe FaceMesh](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker)
+- Watches your face via webcam using [MediaPipe FaceLandmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker)
 - Detects in real time whether your mouth is open (mouth breathing) or closed (nose breathing)
 - Tracks daily totals: how long you spent breathing through your nose vs your mouth
 - Shows a daily summary with a breakdown chart and a streak counter for good days
@@ -22,7 +22,7 @@ Built as a personal project for my brother-in-law, who is working on improving h
 - **Live detection** — nose 👃 / mouth 👄 state updates every 200ms
 - **Daily timers** — cumulative nose vs mouth seconds with a ratio bar
 - **Daily summary** — donut chart, streak counter, motivational message
-- **Calibration** — measures your personal mouth positions for accurate thresholds
+- **Calibration** — measures your personal mouth positions for an accurate threshold
 - **Sensitivity control** — fine-tune detection via a slider in settings
 - **Scheduled reminder** — pick a time to automatically show the daily summary
 - **Always on top** — keep the window above other apps while you work
@@ -55,7 +55,7 @@ Built as a personal project for my brother-in-law, who is working on improving h
 
 ## Privacy
 
-- No network requests are made after the MediaPipe model loads on first run
+- No network requests are made — the face detection model is bundled with the app
 - No video is recorded or stored — only breathing state (nose/mouth) and second-level counters
 - All session data is saved locally in your app data folder
 
@@ -64,9 +64,10 @@ Built as a personal project for my brother-in-law, who is working on improving h
 ## Tech stack
 
 - [Electron](https://www.electronjs.org/) — desktop shell
-- [MediaPipe FaceMesh](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker) — face landmark detection (loaded from CDN)
+- [electron-vite](https://electron-vite.org/) — build tooling
+- [TypeScript](https://www.typescriptlang.org/) — strict mode throughout
+- [MediaPipe FaceLandmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker) — face landmark detection, bundled locally
 - [electron-store](https://github.com/sindresorhus/electron-store) — settings persistence
-- Vanilla JS, no framework, no bundler
 
 ---
 
@@ -76,7 +77,7 @@ Built as a personal project for my brother-in-law, who is working on improving h
 git clone https://github.com/Tghez/Nose-or-Mouth.git
 cd Nose-or-Mouth
 npm install
-npm start          # run in development
-npm run build:win  # build Windows installer
-npm run build:mac  # build macOS DMG
+npm run dev        # run in development
+npm run dist:win   # build Windows installer
+npm run dist:mac   # build macOS DMG
 ```
