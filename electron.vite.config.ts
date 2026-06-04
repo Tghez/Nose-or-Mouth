@@ -1,5 +1,13 @@
 import { defineConfig } from 'electron-vite'
 import { resolve } from 'path'
+import { createLogger } from 'vite'
+
+const rendererLogger = createLogger()
+const _warn = rendererLogger.warn.bind(rendererLogger)
+rendererLogger.warn = (msg, opts) => {
+  if (msg.includes('Failed to load source map') && msg.includes('@mediapipe')) return
+  _warn(msg, opts)
+}
 
 export default defineConfig({
   main: {
@@ -22,9 +30,7 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
-    server: {
-      sourcemapIgnoreList: (path) => path.includes('@mediapipe')
-    },
+    customLogger: rendererLogger,
     optimizeDeps: {
       exclude: ['@mediapipe/tasks-vision']
     },
