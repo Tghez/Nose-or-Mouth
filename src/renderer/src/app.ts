@@ -90,9 +90,12 @@ async function initMediaPipe(): Promise<boolean> {
         modelAssetPath: './mediapipe-wasm/face_landmarker.task',
         delegate: 'CPU',
       },
-      outputFaceBlendshapes: true,
+      outputFaceBlendshapes: false,
       runningMode: 'VIDEO',
       numFaces: 1,
+      minFaceDetectionConfidence: 0.35,
+      minFacePresenceScore: 0.35,
+      minTrackingConfidence: 0.35,
     })
   } catch (err) {
     console.error('FaceLandmarker init error:', err)
@@ -127,14 +130,21 @@ function startDetectionLoop(): void {
   loop()
 }
 
-function getJawOpen(results: FaceLandmarkerResult): number {
-  const cats = results.faceBlendshapes?.[0]?.categories
-  if (!cats) return 0
-  return cats.find(c => c.categoryName === 'jawOpen')?.score ?? 0
+// Geometric lip-openness: gap between inner lip landmarks normalized by inter-eye
+// distance. More stable than the jawOpen blendshape under yaw rotation (side-screen).
+// Landmark indices (MediaPipe 478-point model):
+//   13 = upper inner lip center, 14 = lower inner lip center
+//   33 = left eye medial canthus, 263 = right eye medial canthus
+function getLipOpenRatio(results: FaceLandmarkerResult): number {
+  const lm = results.faceLandmarks?.[0]
+  if (!lm) return 0
+  const lipGap  = Math.hypot(lm[13].x - lm[14].x, lm[13].y - lm[14].y)
+  const eyeDist = Math.hypot(lm[33].x - lm[263].x, lm[33].y - lm[263].y)
+  return eyeDist > 0 ? lipGap / eyeDist : 0
 }
 
-function classifyMouth(jawOpen: number): boolean {
-  ratioBuffer.push(jawOpen)
+function classifyMouth(ratio: number): boolean {
+  ratioBuffer.push(ratio)
   if (ratioBuffer.length > BUFFER_SIZE) ratioBuffer.shift()
   const avg = ratioBuffer.reduce((a, b) => a + b, 0) / ratioBuffer.length
   return avg > state.threshold
@@ -149,14 +159,14 @@ function onFaceLandmarkerResults(results: FaceLandmarkerResult): void {
   handleFaceDetected()
   drawFaceMesh(results)
 
-  const jawOpen = getJawOpen(results)
-  state.mouthOpen = classifyMouth(jawOpen)
+  const ratio = getLipOpenRatio(results)
+  state.mouthOpen = classifyMouth(ratio)
   updateStateUI()
 
   if (calibrationState.active) {
     const el = document.getElementById('calibration-ratio-display')
-    if (el) el.textContent = jawOpen.toFixed(4)
-    if (calibrationState.collecting) calibrationState.samples.push(jawOpen)
+    if (el) el.textContent = ratio.toFixed(4)
+    if (calibrationState.collecting) calibrationState.samples.push(ratio)
   }
 }
 
@@ -410,11 +420,12 @@ async function loadSettings(): Promise<StoreSchema> {
   const s = await window.electronAPI.getSettings()
   state.settings = s
 
-  // jawOpen blendshape lives in [0, 1]; reset any threshold from previous metrics.
-  const stored = s.threshold ?? 0.2
-  const isStale = stored < 0 || stored > 1.0
-  if (isStale) await window.electronAPI.saveSettings({ calibrated: false, threshold: 0.2 })
-  const effective = isStale ? 0.2 : stored
+  // Lip-ratio metric lives in ~[0, 0.3]; values ≥ 0.2 are from the old blendshape
+  // scale and must be reset so users recalibrate with the geometric metric.
+  const stored = s.threshold ?? 0.08
+  const isStale = stored >= 0.2
+  if (isStale) await window.electronAPI.saveSettings({ calibrated: false, threshold: 0.08 })
+  const effective = isStale ? 0.08 : stored
   state.threshold = effective
 
   ;(document.getElementById('setting-always-on-top') as HTMLInputElement).checked = !!s.alwaysOnTop
