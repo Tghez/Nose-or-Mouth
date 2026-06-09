@@ -125,6 +125,7 @@
     <button class="btn btn-ghost" id="settings-close-btn" style="padding:4px 8px;font-size:18px">✕</button>
   </div>
 
+  <div id="settings-body">
   <div class="settings-group">
     <div class="settings-row">
       <div class="settings-row-label">
@@ -170,6 +171,21 @@
   <div class="settings-group">
     <div class="settings-row">
       <div class="settings-row-label">
+        <span>Mouth Breathing Alert</span>
+        <small>Notify after this long in a row</small>
+      </div>
+      <select id="setting-mouth-alert">
+        <option value="0">Off</option>
+        <option value="60">1 min</option>
+        <option value="300">5 min</option>
+        <option value="600">10 min</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <div class="settings-row">
+      <div class="settings-row-label">
         <span>Daily Summary Time</span>
         <small>When to show today's summary</small>
       </div>
@@ -198,6 +214,7 @@
   <div style="text-align:center;margin-top:8px;font-size:10px;color:var(--text-faint)">
     🔒 All processing is local
   </div>
+  </div><!-- /settings-body -->
 </div>
 
 <!-- ── Tutorial overlay ───────────────────────────────────────────────────── -->
@@ -231,7 +248,10 @@
 
   <div id="camera-wrap">
     <video id="video" autoplay playsinline muted></video>
+    <canvas id="face-canvas" width="320" height="180"></canvas>
     <div id="status-dot"></div>
+    <button id="mesh-toggle" title="Toggle face mesh">◈</button>
+    <div id="face-badge"></div>
   </div>
 
   <div id="state-section">

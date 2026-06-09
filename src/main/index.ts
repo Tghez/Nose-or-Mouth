@@ -19,7 +19,8 @@ const store = new Store<StoreSchema>({
     tutorialSeen: false,
     lastSummaryDate: null,
     windowBounds: null,
-    cameraPermission: false
+    cameraPermission: false,
+    mouthAlertThresholdSeconds: 300
   }
 })
 

@@ -9,6 +9,11 @@ import { isSupabaseConfigured } from './supabase'
 const FREE_DAILY_LIMIT_SECONDS = 600 // 10 minutes for free tier
 let limitReached = false
 
+// ── Mouth alert tracking ──────────────────────────────────────────────────────
+let mouthAlertThresholdSeconds = 300
+let consecutiveMouthSeconds = 0
+let mouthAlertFired = false
+
 // ── State ─────────────────────────────────────────────────────────────────────
 const state: AppState = {
   mouthOpen: false,
@@ -32,6 +37,10 @@ const BUFFER_SIZE = 3
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const videoEl         = document.getElementById('video') as HTMLVideoElement
+const faceCanvas      = document.getElementById('face-canvas') as HTMLCanvasElement
+const faceCtx         = faceCanvas.getContext('2d')!
+const cameraWrap      = document.getElementById('camera-wrap') as HTMLDivElement
+const faceBadge       = document.getElementById('face-badge') as HTMLDivElement
 const statusDot       = document.getElementById('status-dot') as HTMLDivElement
 const stateIndicator  = document.getElementById('state-indicator') as HTMLDivElement
 const stateEmoji      = document.getElementById('state-emoji') as HTMLDivElement
@@ -92,6 +101,7 @@ async function initMediaPipe(): Promise<boolean> {
   }
 
   state.mediapipeReady = true
+  initMeshFeatures()
   setStatus('Detecting…')
   startDetectionLoop()
   return true
@@ -132,10 +142,12 @@ function classifyMouth(jawOpen: number): boolean {
 
 function onFaceLandmarkerResults(results: FaceLandmarkerResult): void {
   if (!results.faceLandmarks || results.faceLandmarks.length === 0) {
+    clearFaceMesh()
     handleNoFace()
     return
   }
   handleFaceDetected()
+  drawFaceMesh(results)
 
   const jawOpen = getJawOpen(results)
   state.mouthOpen = classifyMouth(jawOpen)
@@ -148,8 +160,72 @@ function onFaceLandmarkerResults(results: FaceLandmarkerResult): void {
   }
 }
 
+type Connection = { start: number; end: number }
+
+let faceMeshVisible = true
+
+const MESH_FEATURES: Array<Connection[]> = [] // populated after FaceLandmarker is loaded
+
+function initMeshFeatures(): void {
+  MESH_FEATURES.push(
+    FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
+    FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
+    FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+    FaceLandmarker.FACE_LANDMARKS_LIPS,
+  )
+}
+
+function drawFaceMesh(results: FaceLandmarkerResult): void {
+  if (!faceMeshVisible) return
+
+  const cw = faceCanvas.width
+  const ch = faceCanvas.height
+  faceCtx.clearRect(0, 0, cw, ch)
+
+  const landmarks = results.faceLandmarks[0]
+
+  // Map normalized coords to canvas pixels, accounting for object-fit: cover
+  const vw = videoEl.videoWidth  || cw
+  const vh = videoEl.videoHeight || ch
+  const scale = Math.max(cw / vw, ch / vh)
+  const ox = (cw - vw * scale) / 2
+  const oy = (ch - vh * scale) / 2
+
+  const px = (i: number) => landmarks[i].x * vw * scale + ox
+  const py = (i: number) => landmarks[i].y * vh * scale + oy
+
+  for (const conns of MESH_FEATURES) {
+    faceCtx.strokeStyle = 'rgba(251,191,36,0.28)'
+    faceCtx.lineWidth = 0.8
+    faceCtx.beginPath()
+    for (const c of conns) {
+      faceCtx.moveTo(px(c.start), py(c.start))
+      faceCtx.lineTo(px(c.end),   py(c.end))
+    }
+    faceCtx.stroke()
+
+    faceCtx.fillStyle = 'rgba(251,191,36,0.60)'
+    const seen = new Set<number>()
+    for (const c of conns) {
+      for (const idx of [c.start, c.end]) {
+        if (!seen.has(idx)) {
+          seen.add(idx)
+          faceCtx.beginPath()
+          faceCtx.arc(px(idx), py(idx), 1.5, 0, Math.PI * 2)
+          faceCtx.fill()
+        }
+      }
+    }
+  }
+}
+
+function clearFaceMesh(): void {
+  faceCtx.clearRect(0, 0, faceCanvas.width, faceCanvas.height)
+}
+
 function handleNoFace(): void {
   updateStatusDot('no-face')
+  updateFaceBadge(false)
   if (state.faceDetected) {
     state.faceDetected = false
     if (!state.noFaceTimer) {
@@ -172,7 +248,21 @@ function handleFaceDetected(): void {
   state.faceDetected = true
   state.paused = false
   updateStatusDot('detecting')
+  updateFaceBadge(true)
   setStatus('Detecting…')
+}
+
+function updateFaceBadge(detected: boolean): void {
+  if (detected) {
+    faceBadge.textContent = ''
+    faceBadge.className = ''
+    cameraWrap.classList.add('face-ok')
+    cameraWrap.classList.remove('face-missing')
+  } else {
+    faceBadge.textContent = '● No Face detected'
+    faceBadge.className = 'face-missing'
+    cameraWrap.classList.remove('face-ok')
+  }
 }
 
 // ── UI updates ────────────────────────────────────────────────────────────────
@@ -224,12 +314,28 @@ function updateCounterUI(): void {
 let saveDebounceCount = 0
 
 setInterval(() => {
-  if (state.paused || !state.faceDetected) return
+  if (state.paused || !state.faceDetected) {
+    consecutiveMouthSeconds = 0
+    mouthAlertFired = false
+    return
+  }
 
   if (state.mouthOpen) {
     state.mouthSeconds++
+    consecutiveMouthSeconds++
+    if (mouthAlertThresholdSeconds > 0 && !mouthAlertFired &&
+        consecutiveMouthSeconds >= mouthAlertThresholdSeconds) {
+      mouthAlertFired = true
+      const mins = mouthAlertThresholdSeconds / 60
+      window.electronAPI.showNotification({
+        title: 'Mouth Breather',
+        body: `You've been breathing through your mouth for ${mins} minute${mins !== 1 ? 's' : ''}. Try switching to nose breathing!`
+      })
+    }
   } else {
     state.noseSeconds++
+    consecutiveMouthSeconds = 0
+    mouthAlertFired = false
   }
 
   updateCounterUI()
@@ -319,6 +425,10 @@ async function loadSettings(): Promise<StoreSchema> {
   ;(document.getElementById('threshold-display') as HTMLSpanElement).textContent =
     parseFloat(thresholdEl.value).toFixed(3)
 
+  mouthAlertThresholdSeconds = s.mouthAlertThresholdSeconds ?? 300
+  ;(document.getElementById('setting-mouth-alert') as HTMLSelectElement).value =
+    String(mouthAlertThresholdSeconds)
+
   return s
 }
 
@@ -328,6 +438,7 @@ function bindSettingsEvents(): void {
   const summaryTimeEl    = document.getElementById('setting-summary-time') as HTMLInputElement
   const thresholdEl      = document.getElementById('setting-threshold') as HTMLInputElement
   const thresholdDisplay = document.getElementById('threshold-display') as HTMLSpanElement
+  const mouthAlertEl     = document.getElementById('setting-mouth-alert') as HTMLSelectElement
 
   alwaysOnTopEl.addEventListener('change', () => {
     window.electronAPI.saveSettings({ alwaysOnTop: alwaysOnTopEl.checked })
@@ -346,6 +457,20 @@ function bindSettingsEvents(): void {
     thresholdDisplay.textContent = val.toFixed(3)
     state.threshold = val
     window.electronAPI.saveSettings({ threshold: val })
+  })
+
+  mouthAlertEl.addEventListener('change', () => {
+    mouthAlertThresholdSeconds = parseInt(mouthAlertEl.value, 10)
+    consecutiveMouthSeconds = 0
+    mouthAlertFired = false
+    window.electronAPI.saveSettings({ mouthAlertThresholdSeconds })
+  })
+
+  const meshToggleBtn = document.getElementById('mesh-toggle') as HTMLButtonElement
+  meshToggleBtn.addEventListener('click', () => {
+    faceMeshVisible = !faceMeshVisible
+    meshToggleBtn.classList.toggle('off', !faceMeshVisible)
+    if (!faceMeshVisible) clearFaceMesh()
   })
 
   document.getElementById('settings-btn')!.addEventListener('click', () => {
@@ -370,8 +495,10 @@ function bindSettingsEvents(): void {
   window.electronAPI.onSettingsChanged((newSettings) => {
     state.settings = newSettings
     state.threshold = newSettings.threshold ?? 0.2
+    mouthAlertThresholdSeconds = newSettings.mouthAlertThresholdSeconds ?? 300
     alwaysOnTopEl.checked  = !!newSettings.alwaysOnTop
     startAtLoginEl.checked = !!newSettings.startAtLogin
+    mouthAlertEl.value = String(mouthAlertThresholdSeconds)
   })
 }
 

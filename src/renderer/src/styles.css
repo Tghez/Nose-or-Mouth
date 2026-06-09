@@ -246,6 +246,12 @@ body {
   flex-shrink: 0;
   border: 1px solid var(--border);
   align-self: center;
+  transition: border-color 0.4s, box-shadow 0.4s;
+}
+
+#camera-wrap.face-ok {
+  border-color: rgba(34, 197, 94, 0.45);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
 }
 
 #video {
@@ -254,6 +260,36 @@ body {
   object-fit: cover;
   transform: scaleX(-1); /* mirror */
   display: block;
+}
+
+#face-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: scaleX(-1); /* mirror to match video */
+}
+
+#mesh-toggle {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(251,191,36,0.75);
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  line-height: 1;
+  z-index: 2;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+#mesh-toggle.off {
+  color: var(--text-faint);
+  border-color: transparent;
 }
 
 #status-dot {
@@ -270,6 +306,36 @@ body {
 
 #status-dot.detecting { background: var(--nose-color); }
 #status-dot.no-face   { background: var(--red); }
+
+#face-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  pointer-events: none;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.4s, background 0.3s, border-color 0.3s, color 0.3s;
+}
+
+#face-badge.face-ok {
+  opacity: 1;
+  background: rgba(34, 197, 94, 0.18);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  color: var(--nose-color);
+}
+
+#face-badge.face-missing {
+  opacity: 1;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--red);
+}
 
 /* ── State indicator ─────────────────────────────────────────────────────── */
 #state-section {
@@ -434,8 +500,9 @@ body {
   inset: 0;
   background: var(--bg);
   z-index: 50;
-  overflow-y: scroll;
-  padding: 16px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 #settings-panel.hidden { display: none; }
@@ -444,7 +511,16 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  flex-shrink: 0;
+  padding: 16px 16px 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+#settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px 32px;
 }
 
 #settings-header h2 {
@@ -587,7 +663,8 @@ input[type=range]::-webkit-slider-thumb {
   font-variant-numeric: tabular-nums;
 }
 
-input[type=time] {
+input[type=time],
+.settings-row select {
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -598,7 +675,8 @@ input[type=time] {
   cursor: pointer;
 }
 
-input[type=time]:focus {
+input[type=time]:focus,
+.settings-row select:focus {
   border-color: var(--nose-color);
 }
 
