@@ -34,13 +34,18 @@ Built as a personal project for my brother-in-law, who is working on improving h
 ## Installation
 
 ### Windows
-1. Go to [Actions](../../actions) → latest green Build run → download **Mouth-Breather-Windows**
-2. Run the `.exe` installer
+1. Go to **[Releases](../../releases/latest)** → download the `.exe` file (e.g. `Mouth Breather Setup 1.1.0.exe`)
+2. Run the installer. If Windows SmartScreen appears, click **More info → Run anyway** (the app is unsigned)
 
 ### macOS
-1. Go to [Actions](../../actions) → latest green Build run → download **Mouth-Breather-Mac**
-2. Open the `.dmg` and drag the app to Applications
-3. **First launch:** macOS will warn the app is from an unidentified developer (no paid Apple certificate). Right-click the app → **Open** → **Open**
+1. Go to **[Releases](../../releases/latest)** → download the `.dmg` file
+2. Open the `.dmg` and drag **Mouth Breather** to Applications
+3. Right-click **Mouth Breather** in Applications → **Open** → **Open** *(one-time confirmation — the app clears the Gatekeeper flag automatically so every launch after that is normal)*
+
+> **On a managed or work Mac where right-click is blocked by IT policy?** Before opening the DMG, run this in Terminal — then repeat steps 2–3:
+> ```bash
+> xattr -d com.apple.quarantine ~/Downloads/Mouth\ Breather-*.dmg
+> ```
 
 ---
 

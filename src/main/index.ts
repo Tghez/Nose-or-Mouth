@@ -1,10 +1,19 @@
 import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, session } from 'electron'
 import type { NativeImage } from 'electron'
 import { join } from 'path'
+import { execFileSync } from 'child_process'
 import Store from 'electron-store'
 import * as storage from './utils/storage'
 import { startScheduler, computeStreak, localDateString } from './utils/scheduler'
 import type { StoreSchema, Session, SummaryData } from '../types/session'
+
+// Remove macOS quarantine flag on first launch so subsequent opens work without Gatekeeper warnings
+if (process.platform === 'darwin' && app.isPackaged) {
+  const bundleMatch = process.execPath.match(/^(.*?\.app)\//)
+  if (bundleMatch) {
+    try { execFileSync('xattr', ['-d', 'com.apple.quarantine', bundleMatch[1]], { stdio: 'ignore' }) } catch { /* not set */ }
+  }
+}
 
 // app doesn't type isQuitting, but we set it as a quit guard flag
 const appState = app as typeof app & { isQuitting: boolean }
