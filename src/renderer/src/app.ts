@@ -93,9 +93,9 @@ async function initMediaPipe(): Promise<boolean> {
       outputFaceBlendshapes: false,
       runningMode: 'VIDEO',
       numFaces: 1,
-      minFaceDetectionConfidence: 0.35,
-      minFacePresenceScore: 0.35,
-      minTrackingConfidence: 0.35,
+      minFaceDetectionConfidence: 0.2,
+      minFacePresenceScore: 0.2,
+      minTrackingConfidence: 0.2,
     })
   } catch (err) {
     console.error('FaceLandmarker init error:', err)
@@ -117,7 +117,7 @@ function startDetectionLoop(): void {
     const now = Date.now()
     if (now - lastSendTime >= 200) {
       lastSendTime = now
-      if (videoEl.readyState >= 2) {
+      if (videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
         try {
           const results = faceLandmarker.detectForVideo(videoEl, performance.now())
           onFaceLandmarkerResults(results)
@@ -394,7 +394,11 @@ function hideLimitOverlay(): void {
 async function startCamera(): Promise<boolean> {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' }
+      video: {
+        width: { ideal: 640, max: 1280 },
+        height: { ideal: 480, max: 960 },
+        facingMode: { ideal: 'user' },
+      }
     })
     videoEl.srcObject = stream
 
@@ -404,6 +408,19 @@ async function startCamera(): Promise<boolean> {
       }
       videoEl.onerror = reject
     })
+
+    // On macOS, videoWidth can stay 0 briefly after play() resolves while the
+    // first frame is decoded. Poll until a real frame is available (max 3s).
+    if (videoEl.videoWidth === 0) {
+      await new Promise<void>((resolve) => {
+        let attempts = 0
+        const check = () => {
+          if (videoEl.videoWidth > 0 || attempts++ > 30) resolve()
+          else setTimeout(check, 100)
+        }
+        check()
+      })
+    }
 
     state.cameraReady = true
     return true
