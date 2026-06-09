@@ -1,6 +1,6 @@
 # Mouth Breather
 
-**Real-time nasal vs. mouth breathing tracker for your desktop — all processing stays on your device.**
+**Real-time nose vs. mouth breathing tracker for your desktop — all processing stays on your device.**
 
 Mouth Breather uses your webcam and MediaPipe face landmark detection to monitor your breathing pattern throughout the day, giving you a concrete daily split between nose and mouth breathing so you can build better habits over time.
 
