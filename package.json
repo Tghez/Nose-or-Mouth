@@ -7,9 +7,9 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "dist": "electron-vite build && electron-builder",
-    "dist:win": "electron-vite build && electron-builder --win",
-    "dist:mac": "electron-vite build && electron-builder --mac"
+    "dist": "electron-vite build && electron-builder --publish=never",
+    "dist:win": "electron-vite build && electron-builder --win --publish=never",
+    "dist:mac": "electron-vite build && electron-builder --mac --publish=never"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.14",
