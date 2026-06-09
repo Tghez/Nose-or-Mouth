@@ -130,18 +130,22 @@ function startDetectionLoop(): void {
   loop()
 }
 
-// Lip-openness ratio robust to yaw (looking at a side screen).
+// Lip-openness ratio: sensitive to partial openings, robust to yaw.
 //
-// WHY the old approach broke: normalizing by inter-eye width collapses when the
-// face turns sideways — one eye moves behind the other in the 2D projection, so
-// eyeDist → 0 and the ratio shoots up even with a closed mouth.
+// WHY 2D eye-dist breaks at yaw: when the face turns sideways one eye moves
+// behind the other in projection, so eyeDist_2D → 0 and the ratio spikes even
+// with a closed mouth.
 //
-// New approach:
-//   1. 3D distances (include z-depth) so depth changes under rotation are captured.
-//   2. Average three vertical inner-lip pairs instead of just the center one:
-//        left  82 ↔ 87,  center  13 ↔ 14,  right  312 ↔ 317
-//   3. Normalize by forehead→chin (lm[10] → lm[152]), which stays constant
-//      regardless of how far the user turns left or right.
+// WHY the 3-pair face-height approach broke half-open detection: averaging side
+// pairs (82/87, 312/317) with the center pair (13/14) dilutes the signal —
+// side pairs travel less vertically than center on a partial opening, and the
+// face-height denominator is so large that partial openings produce ratios too
+// small to distinguish from closed.
+//
+// Solution: center pair only (maximum sensitivity) + 3D inter-eye distance
+// (yaw-stable: when the face turns, x-collapse is compensated by z-depth).
+//   13 = upper inner lip center, 14 = lower inner lip center
+//   33 = left eye medial canthus, 263 = right eye medial canthus
 function getLipOpenRatio(results: FaceLandmarkerResult): number {
   const lm = results.faceLandmarks?.[0]
   if (!lm) return 0
@@ -149,10 +153,10 @@ function getLipOpenRatio(results: FaceLandmarkerResult): number {
   const d3 = (a: number, b: number) =>
     Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y, (lm[a].z ?? 0) - (lm[b].z ?? 0))
 
-  const lipGap    = (d3(82, 87) + d3(13, 14) + d3(312, 317)) / 3
-  const faceHeight = d3(10, 152)
+  const lipGap = d3(13, 14)
+  const eyeDist = d3(33, 263)   // 3D: stays constant across yaw rotations
 
-  return faceHeight > 0 ? lipGap / faceHeight : 0
+  return eyeDist > 0 ? lipGap / eyeDist : 0
 }
 
 function classifyMouth(ratio: number): boolean {
@@ -450,13 +454,15 @@ async function loadSettings(): Promise<StoreSchema> {
   state.settings = s
 
   // Threshold migration history:
-  //   ≥ 0.2  → old blendshape scale (0–1), reset to face-height metric default
-  //   ≥ 0.04 → calibrated against inter-eye distance; face-height values are ~3×
-  //             smaller so anything in this range needs recalibration too
-  const stored = s.threshold ?? 0.025
-  const isStale = stored >= 0.04
-  if (isStale) await window.electronAPI.saveSettings({ calibrated: false, threshold: 0.025 })
-  const effective = isStale ? 0.025 : stored
+  //   ≥ 0.2        → old blendshape scale (0–1): stale
+  //   < 0.04       → set by the short-lived face-height metric (values ~3× smaller
+  //                  than the eye-dist scale): stale, recalibrate
+  //   0.04 – 0.19  → calibrated against 2D or 3D inter-eye distance: valid,
+  //                  3D scale matches 2D scale when frontal so no migration needed
+  const stored = s.threshold ?? 0.07
+  const isStale = stored >= 0.2 || stored < 0.04
+  if (isStale) await window.electronAPI.saveSettings({ calibrated: false, threshold: 0.07 })
+  const effective = isStale ? 0.07 : stored
   state.threshold = effective
 
   ;(document.getElementById('setting-always-on-top') as HTMLInputElement).checked = !!s.alwaysOnTop
