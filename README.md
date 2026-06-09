@@ -13,9 +13,9 @@ Built as a personal project for my brother-in-law, who is working on improving h
 
 Most people mouth-breathe without realizing it. It's a habitual, largely unconscious behavior — but the downstream effects are real.
 
-**Nasal breathing:**
+**Nose breathing:**
 - Filters, warms, and humidifies inhaled air before it reaches the lungs
-- Produces nitric oxide in the nasal cavity, which dilates blood vessels and improves oxygen uptake efficiency
+- Produces nitric oxide in the nose, which dilates blood vessels and improves oxygen uptake efficiency
 - Activates the diaphragm more fully, promoting slower, deeper breaths and engaging the parasympathetic (rest-and-digest) nervous system
 
 **Chronic mouth breathing is associated with:**
