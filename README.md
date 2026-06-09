@@ -40,9 +40,9 @@ Built as a personal project for my brother-in-law, who is working on improving h
 ### macOS
 1. Go to **[Releases](../../releases/latest)** → download the `.dmg` file
 2. Open the `.dmg` and drag **Mouth Breather** to Applications
-3. Right-click **Mouth Breather** in Applications → **Open** → **Open** *(one-time confirmation — the app clears the Gatekeeper flag automatically so every launch after that is normal)*
+3. Try to open **Mouth Breather** — macOS will block it. Open **System Settings → Privacy & Security**, scroll to the Security section, and click **Open Anyway**. The app opens and clears the flag automatically so every launch after that is normal.
 
-> **On a managed or work Mac where right-click is blocked by IT policy?** Before opening the DMG, run this in Terminal — then repeat steps 2–3:
+> **On a managed or work Mac where "Open Anyway" is greyed out?** Before opening the DMG, run this in Terminal — then repeat steps 2–3:
 > ```bash
 > xattr -d com.apple.quarantine ~/Downloads/Mouth\ Breather-*.dmg
 > ```

@@ -27,6 +27,7 @@
   "build": {
     "appId": "com.tghez.mouth-breather",
     "productName": "Mouth Breather",
+    "afterPack": "scripts/after-pack.js",
     "files": [
       "out/**/*"
     ],
