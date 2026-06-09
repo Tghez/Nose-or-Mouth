@@ -130,17 +130,29 @@ function startDetectionLoop(): void {
   loop()
 }
 
-// Geometric lip-openness: gap between inner lip landmarks normalized by inter-eye
-// distance. More stable than the jawOpen blendshape under yaw rotation (side-screen).
-// Landmark indices (MediaPipe 478-point model):
-//   13 = upper inner lip center, 14 = lower inner lip center
-//   33 = left eye medial canthus, 263 = right eye medial canthus
+// Lip-openness ratio robust to yaw (looking at a side screen).
+//
+// WHY the old approach broke: normalizing by inter-eye width collapses when the
+// face turns sideways — one eye moves behind the other in the 2D projection, so
+// eyeDist → 0 and the ratio shoots up even with a closed mouth.
+//
+// New approach:
+//   1. 3D distances (include z-depth) so depth changes under rotation are captured.
+//   2. Average three vertical inner-lip pairs instead of just the center one:
+//        left  82 ↔ 87,  center  13 ↔ 14,  right  312 ↔ 317
+//   3. Normalize by forehead→chin (lm[10] → lm[152]), which stays constant
+//      regardless of how far the user turns left or right.
 function getLipOpenRatio(results: FaceLandmarkerResult): number {
   const lm = results.faceLandmarks?.[0]
   if (!lm) return 0
-  const lipGap  = Math.hypot(lm[13].x - lm[14].x, lm[13].y - lm[14].y)
-  const eyeDist = Math.hypot(lm[33].x - lm[263].x, lm[33].y - lm[263].y)
-  return eyeDist > 0 ? lipGap / eyeDist : 0
+
+  const d3 = (a: number, b: number) =>
+    Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y, (lm[a].z ?? 0) - (lm[b].z ?? 0))
+
+  const lipGap    = (d3(82, 87) + d3(13, 14) + d3(312, 317)) / 3
+  const faceHeight = d3(10, 152)
+
+  return faceHeight > 0 ? lipGap / faceHeight : 0
 }
 
 function classifyMouth(ratio: number): boolean {
@@ -437,12 +449,14 @@ async function loadSettings(): Promise<StoreSchema> {
   const s = await window.electronAPI.getSettings()
   state.settings = s
 
-  // Lip-ratio metric lives in ~[0, 0.3]; values ≥ 0.2 are from the old blendshape
-  // scale and must be reset so users recalibrate with the geometric metric.
-  const stored = s.threshold ?? 0.08
-  const isStale = stored >= 0.2
-  if (isStale) await window.electronAPI.saveSettings({ calibrated: false, threshold: 0.08 })
-  const effective = isStale ? 0.08 : stored
+  // Threshold migration history:
+  //   ≥ 0.2  → old blendshape scale (0–1), reset to face-height metric default
+  //   ≥ 0.04 → calibrated against inter-eye distance; face-height values are ~3×
+  //             smaller so anything in this range needs recalibration too
+  const stored = s.threshold ?? 0.025
+  const isStale = stored >= 0.04
+  if (isStale) await window.electronAPI.saveSettings({ calibrated: false, threshold: 0.025 })
+  const effective = isStale ? 0.025 : stored
   state.threshold = effective
 
   ;(document.getElementById('setting-always-on-top') as HTMLInputElement).checked = !!s.alwaysOnTop

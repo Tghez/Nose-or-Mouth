@@ -21,7 +21,7 @@ const appState = app as typeof app & { isQuitting: boolean }
 const store = new Store<StoreSchema>({
   defaults: {
     alwaysOnTop: false,
-    threshold: 0.04,
+    threshold: 0.025,
     summaryTime: '18:00',
     startAtLogin: false,
     calibrated: false,
