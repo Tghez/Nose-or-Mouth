@@ -65,6 +65,7 @@ function createWindow(): void {
     maxHeight: 510,
     resizable: false,
     frame: true,
+    autoHideMenuBar: true,
     alwaysOnTop: store.get('alwaysOnTop'),
     skipTaskbar: false,
     title: 'Mouth Breather',
@@ -84,11 +85,9 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  mainWindow.on('close', (e: Electron.Event) => {
-    if (!appState.isQuitting) {
-      e.preventDefault()
-      mainWindow?.hide()
-    }
+  mainWindow.on('close', () => {
+    appState.isQuitting = true
+    app.quit()
   })
 
   mainWindow.on('closed', () => {

@@ -239,19 +239,22 @@
 <!-- ── Main app ────────────────────────────────────────────────────────── -->
 <div id="app">
   <div id="top-bar">
-    <div id="app-title">Mouth Breather</div>
     <div id="top-bar-right">
       <button id="auth-btn" title="Sign in for cloud sync">👤</button>
       <button id="settings-btn" title="Settings">⚙</button>
     </div>
   </div>
 
-  <div id="camera-wrap">
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="face-canvas" width="320" height="180"></canvas>
-    <div id="status-dot"></div>
-    <button id="mesh-toggle" title="Toggle face mesh">◈</button>
-    <div id="face-badge"></div>
+  <div id="camera-section">
+    <div id="camera-wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="face-canvas" width="320" height="180"></canvas>
+      <div id="status-dot"></div>
+      <div id="face-badge"></div>
+    </div>
+    <div id="camera-controls">
+      <button id="mesh-toggle" title="Toggle face overlay">◈ Overlay on</button>
+    </div>
   </div>
 
   <div id="state-section">

@@ -254,6 +254,7 @@ function handleNoFace(): void {
   updateFaceBadge(false)
   if (state.faceDetected) {
     state.faceDetected = false
+    setStateWaiting()
     if (!state.noFaceTimer) {
       state.noFaceTimer = setTimeout(() => {
         state.paused = true
@@ -311,6 +312,12 @@ function setStateNone(): void {
   stateIndicator.className = 'state-none'
   stateEmoji.textContent = '👃'
   stateLabel.textContent = 'PAUSED'
+}
+
+function setStateWaiting(): void {
+  stateIndicator.className = 'state-none'
+  stateEmoji.textContent = '👃'
+  stateLabel.textContent = 'WAITING'
 }
 
 function updateStatusDot(mode: string): void {
@@ -386,15 +393,15 @@ setInterval(() => {
   }
 }, 1000)
 
-function persistSession(): void {
+async function persistSession(): Promise<void> {
   const payload = {
     date: todayString(),
     sessionStart: state.sessionStart,
     mouthBreathingSeconds: state.baseMouthSeconds + state.mouthSeconds,
     noseBreathingSeconds:  state.baseNoseSeconds  + state.noseSeconds
   }
-  window.electronAPI.saveSession(payload)
-  syncSession(payload).catch(() => {}) // cloud sync — fire and forget
+  await window.electronAPI.saveSession(payload)
+  syncSession(payload).catch(() => {})
 }
 
 function showLimitOverlay(): void {
@@ -518,6 +525,7 @@ function bindSettingsEvents(): void {
   meshToggleBtn.addEventListener('click', () => {
     faceMeshVisible = !faceMeshVisible
     meshToggleBtn.classList.toggle('off', !faceMeshVisible)
+    meshToggleBtn.textContent = faceMeshVisible ? '◈ Overlay on' : '◈ Overlay off'
     if (!faceMeshVisible) clearFaceMesh()
   })
 
@@ -531,6 +539,7 @@ function bindSettingsEvents(): void {
 
   document.getElementById('view-summary-btn')!.addEventListener('click', async () => {
     settingsPanel.classList.add('hidden')
+    await persistSession()
     const data = await window.electronAPI.getSummary()
     showSummaryModal(data)
   })
@@ -755,6 +764,11 @@ window.electronAPI.onDailySummaryTrigger(async (data) => {
   })
 
   showSummaryModal(data)
+
+  state.noseSeconds  = 0
+  state.mouthSeconds = 0
+  state.sessionStart = new Date().toISOString()
+  updateCounterUI()
 })
 
 function buildSummaryBody({ noseSeconds, mouthSeconds }: Pick<SummaryData, 'noseSeconds' | 'mouthSeconds'>): string {
@@ -793,11 +807,6 @@ function showSummaryModal(data: SummaryData): void {
 
   drawDonut(document.getElementById('donut-chart') as HTMLCanvasElement, nosePct, mouthPct)
   summaryEl.classList.remove('hidden')
-
-  state.noseSeconds  = 0
-  state.mouthSeconds = 0
-  state.sessionStart = new Date().toISOString()
-  updateCounterUI()
 }
 
 document.getElementById('summary-close-btn')!.addEventListener('click', () => {
