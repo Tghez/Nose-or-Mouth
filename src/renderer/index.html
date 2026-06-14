@@ -309,12 +309,6 @@
       </svg>
       <span class="tb-label">Summary</span>
     </button>
-    <button class="tb-btn" id="tb-camera">
-      <svg class="tb-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-        <path d="M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z"/>
-      </svg>
-      <span class="tb-label" id="tb-camera-label">Camera on</span>
-    </button>
     <button class="tb-btn" id="tb-alert">
       <svg class="tb-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
         <path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/>
@@ -337,7 +331,20 @@
       <div id="face-badge"></div>
     </div>
     <div id="camera-controls">
-      <button id="mesh-toggle" title="Toggle face overlay">◈ Overlay on</button>
+      <div class="cam-toggle-item">
+        <span class="cam-toggle-label">Overlay</span>
+        <label class="toggle toggle-bw">
+          <input type="checkbox" id="overlay-toggle" checked>
+          <div class="toggle-track"></div>
+        </label>
+      </div>
+      <div class="cam-toggle-item">
+        <span class="cam-toggle-label">Camera</span>
+        <label class="toggle toggle-bw">
+          <input type="checkbox" id="camera-toggle" checked>
+          <div class="toggle-track"></div>
+        </label>
+      </div>
     </div>
   </div>
 

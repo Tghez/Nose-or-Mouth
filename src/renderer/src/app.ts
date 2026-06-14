@@ -67,8 +67,7 @@ const authModal       = document.getElementById('auth-modal') as HTMLDivElement
 const limitOverlay    = document.getElementById('limit-overlay') as HTMLDivElement
 
 // ── Toolbar + alert popup DOM refs ────────────────────────────────────────────
-const toolbarCameraBtn     = document.getElementById('tb-camera') as HTMLButtonElement
-const toolbarCameraLabel   = document.getElementById('tb-camera-label') as HTMLSpanElement
+const cameraToggleInput    = document.getElementById('camera-toggle') as HTMLInputElement
 const toolbarAlertBtn      = document.getElementById('tb-alert') as HTMLButtonElement
 const cameraOffPlaceholder = document.getElementById('camera-off-placeholder') as HTMLDivElement
 const alertBackdrop        = document.getElementById('alert-backdrop') as HTMLDivElement
@@ -561,11 +560,9 @@ function bindSettingsEvents(): void {
     window.electronAPI.saveSettings({ threshold: val })
   })
 
-  const meshToggleBtn = document.getElementById('mesh-toggle') as HTMLButtonElement
-  meshToggleBtn.addEventListener('click', () => {
-    faceMeshVisible = !faceMeshVisible
-    meshToggleBtn.classList.toggle('off', !faceMeshVisible)
-    meshToggleBtn.textContent = faceMeshVisible ? '◈ Overlay on' : '◈ Overlay off'
+  const overlayToggleInput = document.getElementById('overlay-toggle') as HTMLInputElement
+  overlayToggleInput.addEventListener('change', () => {
+    faceMeshVisible = overlayToggleInput.checked
     if (!faceMeshVisible) clearFaceMesh()
   })
 
@@ -1144,21 +1141,18 @@ function toggleCamera(): void {
     setStateNone()
     updateStatusDot('')
     setStatus('Camera off')
-    toolbarCameraBtn.classList.add('camera-off')
-    toolbarCameraLabel.textContent = 'Camera off'
+    cameraToggleInput.checked = false
   } else {
     cameraOffPlaceholder.classList.add('hidden')
     videoEl.style.visibility = ''
     cameraEnabled = true
-    toolbarCameraBtn.classList.remove('camera-off')
-    toolbarCameraLabel.textContent = 'Camera on'
+    cameraToggleInput.checked = true
     startCamera().then(ok => {
       if (ok) {
         setStatus('Detecting…')
       } else {
         cameraEnabled = false
-        toolbarCameraBtn.classList.add('camera-off')
-        toolbarCameraLabel.textContent = 'Camera off'
+        cameraToggleInput.checked = false
         cameraOffPlaceholder.classList.remove('hidden')
         videoEl.style.visibility = 'hidden'
       }
@@ -1190,7 +1184,7 @@ function bindToolbar(): void {
     showSummaryModal(data)
   })
 
-  toolbarCameraBtn.addEventListener('click', toggleCamera)
+  cameraToggleInput.addEventListener('change', toggleCamera)
 
   document.getElementById('tb-alert')!.addEventListener('click', openAlertPopup)
 }

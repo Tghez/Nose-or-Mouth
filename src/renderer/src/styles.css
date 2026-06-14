@@ -206,7 +206,7 @@ body {
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
 #toolbar {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   width: calc(100% + 28px);
   margin: -12px -14px 0;
   background: linear-gradient(180deg, #1d1d1d 0%, #131313 100%);
@@ -370,26 +370,55 @@ body {
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  margin-top: 4px;
-  white-space: nowrap;
+  margin-top: 6px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
   z-index: 5;
 }
 
-#mesh-toggle {
-  background: rgba(0,0,0,0.45);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: rgba(251,191,36,0.75);
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  line-height: 1;
-  transition: color 0.2s, border-color 0.2s;
+.cam-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
-#mesh-toggle.off {
-  color: var(--text-faint);
-  border-color: transparent;
+.cam-toggle-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* Black & white toggle variant */
+.toggle.toggle-bw {
+  width: 28px;
+  height: 16px;
+}
+
+.toggle.toggle-bw .toggle-track {
+  border-radius: 8px;
+  background: #505050;
+}
+
+.toggle.toggle-bw .toggle-track::after {
+  width: 12px;
+  height: 12px;
+  top: 2px;
+  left: 2px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+
+.toggle.toggle-bw input:checked + .toggle-track {
+  background: #d8d8d8;
+}
+
+.toggle.toggle-bw input:checked + .toggle-track::after {
+  transform: translateX(12px);
+  background: #111;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
 }
 
 #status-dot {
