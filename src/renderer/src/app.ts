@@ -12,7 +12,7 @@ let limitReached = false
 // ── Mouth alert tracking (rolling-window) ────────────────────────────────────
 let alertEnabled = true
 let alertWindowSeconds = 600
-let alertProportionThreshold = 0.6
+let alertProportionThreshold = 0.8
 let alertWindowStartTime: number | null = null
 let alertWindowMouthSeconds = 0
 let alertWindowTotalSeconds = 0
@@ -74,7 +74,8 @@ const alertBackdrop        = document.getElementById('alert-backdrop') as HTMLDi
 const alertPopup           = document.getElementById('alert-popup') as HTMLDivElement
 const alertEnabledToggle   = document.getElementById('alert-enabled-toggle') as HTMLInputElement
 const alertWindowSelect    = document.getElementById('alert-window-select') as HTMLSelectElement
-const alertThresholdSelect = document.getElementById('alert-threshold-select') as HTMLSelectElement
+const alertThresholdSelect  = document.getElementById('alert-threshold-select') as HTMLInputElement
+const alertThresholdDisplay = document.getElementById('alert-threshold-display') as HTMLSpanElement
 const alertControlsEl      = document.getElementById('alert-controls') as HTMLDivElement
 const alertWindowCounterEl = document.getElementById('alert-window-counter') as HTMLSpanElement
 
@@ -525,10 +526,11 @@ async function loadSettings(): Promise<StoreSchema> {
 
   alertEnabled = s.alertEnabled ?? true
   alertWindowSeconds = s.alertWindowSeconds ?? 600
-  alertProportionThreshold = s.alertProportionThreshold ?? 0.6
+  alertProportionThreshold = s.alertProportionThreshold ?? 0.8
   alertEnabledToggle.checked = alertEnabled
   alertWindowSelect.value = String(alertWindowSeconds)
-  alertThresholdSelect.value = String(alertProportionThreshold)
+  alertThresholdSelect.value = String(Math.round(alertProportionThreshold * 100))
+  alertThresholdDisplay.textContent = Math.round(alertProportionThreshold * 100) + '%'
   alertControlsEl.classList.toggle('disabled', !alertEnabled)
 
   return s
@@ -580,12 +582,13 @@ function bindSettingsEvents(): void {
     state.threshold = newSettings.threshold ?? 0.2
     alertEnabled = newSettings.alertEnabled ?? true
     alertWindowSeconds = newSettings.alertWindowSeconds ?? 600
-    alertProportionThreshold = newSettings.alertProportionThreshold ?? 0.6
+    alertProportionThreshold = newSettings.alertProportionThreshold ?? 0.8
     alwaysOnTopEl.checked  = !!newSettings.alwaysOnTop
     startAtLoginEl.checked = !!newSettings.startAtLogin
     alertEnabledToggle.checked = alertEnabled
     alertWindowSelect.value = String(alertWindowSeconds)
-    alertThresholdSelect.value = String(alertProportionThreshold)
+    alertThresholdSelect.value = String(Math.round(alertProportionThreshold * 100))
+    alertThresholdDisplay.textContent = Math.round(alertProportionThreshold * 100) + '%'
     alertControlsEl.classList.toggle('disabled', !alertEnabled)
   })
 }
@@ -1105,8 +1108,9 @@ function bindAlertPopup(): void {
     window.electronAPI.saveSettings({ alertWindowSeconds })
   })
 
-  alertThresholdSelect.addEventListener('change', () => {
-    alertProportionThreshold = parseFloat(alertThresholdSelect.value)
+  alertThresholdSelect.addEventListener('input', () => {
+    alertProportionThreshold = parseInt(alertThresholdSelect.value, 10) / 100
+    alertThresholdDisplay.textContent = alertThresholdSelect.value + '%'
     resetAlertWindow()
     window.electronAPI.saveSettings({ alertProportionThreshold })
   })

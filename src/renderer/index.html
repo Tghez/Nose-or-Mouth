@@ -271,22 +271,25 @@
         <option value="1800">30 min</option>
       </select>
     </div>
-    <div class="alert-row">
+    <div class="alert-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
       <div class="alert-row-label">
         <span>Mouth % Threshold</span>
         <small>Alert if mouth breathing exceeds</small>
       </div>
-      <select id="alert-threshold-select">
-        <option value="0.6" selected>60%</option>
-        <option value="0.7">70%</option>
-        <option value="0.8">80%</option>
-        <option value="0.9">90%</option>
-        <option value="1.0">100%</option>
-      </select>
+      <div class="settings-slider-wrap" style="width:100%">
+        <div class="settings-slider-row">
+          <span style="font-size:11px;color:var(--text-dim);width:32px">1%</span>
+          <input type="range" id="alert-threshold-select" min="1" max="100" step="1" value="80">
+          <span style="font-size:11px;color:var(--text-dim);width:40px;text-align:right">100%</span>
+        </div>
+        <div style="text-align:center;font-size:11px;color:var(--text-dim)">
+          Threshold: <span id="alert-threshold-display">80%</span>
+        </div>
+      </div>
     </div>
     <div class="alert-row">
       <div class="alert-row-label">
-        <span>Snooze / Reset</span>
+        <span>Reset timer</span>
         <small>Re-arm the alert for next cycle</small>
       </div>
       <button class="btn btn-secondary" id="alert-snooze-btn" style="font-size:11px;padding:5px 12px">Reset</button>
