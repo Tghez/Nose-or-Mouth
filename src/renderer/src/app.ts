@@ -1168,7 +1168,18 @@ function toggleCamera(): void {
 
 // ── Toolbar ───────────────────────────────────────────────────────────────────
 
+function flashToolbarBtn(btn: Element): void {
+  btn.classList.remove('tb-flash')
+  void (btn as HTMLElement).offsetWidth
+  btn.classList.add('tb-flash')
+  btn.addEventListener('animationend', () => btn.classList.remove('tb-flash'), { once: true })
+}
+
 function bindToolbar(): void {
+  document.querySelectorAll('.tb-btn').forEach(btn => {
+    btn.addEventListener('click', () => flashToolbarBtn(btn))
+  })
+
   document.getElementById('tb-settings')!.addEventListener('click', () => {
     settingsPanel.classList.remove('hidden')
   })
