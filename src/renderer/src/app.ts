@@ -9,10 +9,18 @@ import { isSupabaseConfigured } from './supabase'
 const FREE_DAILY_LIMIT_SECONDS = 600 // 10 minutes for free tier
 let limitReached = false
 
-// ── Mouth alert tracking ──────────────────────────────────────────────────────
-let mouthAlertThresholdSeconds = 300
-let consecutiveMouthSeconds = 0
-let mouthAlertFired = false
+// ── Mouth alert tracking (rolling-window) ────────────────────────────────────
+let alertEnabled = true
+let alertWindowSeconds = 600
+let alertProportionThreshold = 0.6
+let alertWindowStartTime: number | null = null
+let alertWindowMouthSeconds = 0
+let alertWindowTotalSeconds = 0
+let alertFired = false
+
+// ── Camera state ──────────────────────────────────────────────────────────────
+let activeStream: MediaStream | null = null
+let cameraEnabled = true
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const state: AppState = {
@@ -57,6 +65,19 @@ const summaryEl       = document.getElementById('summary-modal') as HTMLDivEleme
 const settingsPanel   = document.getElementById('settings-panel') as HTMLDivElement
 const authModal       = document.getElementById('auth-modal') as HTMLDivElement
 const limitOverlay    = document.getElementById('limit-overlay') as HTMLDivElement
+
+// ── Toolbar + alert popup DOM refs ────────────────────────────────────────────
+const toolbarCameraBtn     = document.getElementById('tb-camera') as HTMLButtonElement
+const toolbarCameraLabel   = document.getElementById('tb-camera-label') as HTMLSpanElement
+const toolbarAlertBtn      = document.getElementById('tb-alert') as HTMLButtonElement
+const cameraOffPlaceholder = document.getElementById('camera-off-placeholder') as HTMLDivElement
+const alertBackdrop        = document.getElementById('alert-backdrop') as HTMLDivElement
+const alertPopup           = document.getElementById('alert-popup') as HTMLDivElement
+const alertEnabledToggle   = document.getElementById('alert-enabled-toggle') as HTMLInputElement
+const alertWindowSelect    = document.getElementById('alert-window-select') as HTMLSelectElement
+const alertThresholdSelect = document.getElementById('alert-threshold-select') as HTMLSelectElement
+const alertControlsEl      = document.getElementById('alert-controls') as HTMLDivElement
+const alertWindowCounterEl = document.getElementById('alert-window-counter') as HTMLSpanElement
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -348,28 +369,50 @@ let saveDebounceCount = 0
 
 setInterval(() => {
   if (state.paused || !state.faceDetected) {
-    consecutiveMouthSeconds = 0
-    mouthAlertFired = false
+    alertWindowStartTime = null
+    alertWindowMouthSeconds = 0
+    alertWindowTotalSeconds = 0
     return
   }
 
   if (state.mouthOpen) {
     state.mouthSeconds++
-    consecutiveMouthSeconds++
-    if (mouthAlertThresholdSeconds > 0 && !mouthAlertFired &&
-        consecutiveMouthSeconds >= mouthAlertThresholdSeconds) {
-      mouthAlertFired = true
-      const mins = mouthAlertThresholdSeconds / 60
-      window.electronAPI.showNotification({
-        title: 'Mouth Breather',
-        body: `You've been breathing through your mouth for ${mins} minute${mins !== 1 ? 's' : ''}. Try switching to nose breathing!`
-      })
-    }
   } else {
     state.noseSeconds++
-    consecutiveMouthSeconds = 0
-    mouthAlertFired = false
   }
+
+  // ── Rolling-window alert logic ────────────────────────────────────────────
+  if (alertEnabled) {
+    if (alertWindowStartTime === null) {
+      alertWindowStartTime = Date.now()
+      alertWindowMouthSeconds = 0
+      alertWindowTotalSeconds = 0
+    }
+    alertWindowTotalSeconds++
+    if (state.mouthOpen) alertWindowMouthSeconds++
+
+    const elapsed = (Date.now() - alertWindowStartTime) / 1000
+    if (elapsed >= alertWindowSeconds) {
+      const proportion = alertWindowTotalSeconds > 0
+        ? alertWindowMouthSeconds / alertWindowTotalSeconds : 0
+      if (proportion >= alertProportionThreshold && !alertFired) {
+        alertFired = true
+        const pct = Math.round(proportion * 100)
+        const winMins = alertWindowSeconds / 60
+        window.electronAPI.showNotification({
+          title: 'Mouth Breather Alert',
+          body: `${pct}% mouth breathing in the last ${winMins} min — try nose breathing!`
+        })
+        updateAlertBtnStyle()
+      }
+      alertWindowStartTime = Date.now()
+      alertWindowMouthSeconds = 0
+      alertWindowTotalSeconds = 0
+      alertFired = false
+    }
+    updateAlertCounter()
+  }
+  // ── End alert logic ───────────────────────────────────────────────────────
 
   updateCounterUI()
 
@@ -423,6 +466,7 @@ async function startCamera(): Promise<boolean> {
         facingMode: { ideal: 'user' },
       }
     })
+    activeStream = stream
     videoEl.srcObject = stream
 
     await new Promise<void>((resolve, reject) => {
@@ -480,9 +524,13 @@ async function loadSettings(): Promise<StoreSchema> {
   ;(document.getElementById('threshold-display') as HTMLSpanElement).textContent =
     parseFloat(thresholdEl.value).toFixed(3)
 
-  mouthAlertThresholdSeconds = s.mouthAlertThresholdSeconds ?? 300
-  ;(document.getElementById('setting-mouth-alert') as HTMLSelectElement).value =
-    String(mouthAlertThresholdSeconds)
+  alertEnabled = s.alertEnabled ?? true
+  alertWindowSeconds = s.alertWindowSeconds ?? 600
+  alertProportionThreshold = s.alertProportionThreshold ?? 0.6
+  alertEnabledToggle.checked = alertEnabled
+  alertWindowSelect.value = String(alertWindowSeconds)
+  alertThresholdSelect.value = String(alertProportionThreshold)
+  alertControlsEl.classList.toggle('disabled', !alertEnabled)
 
   return s
 }
@@ -493,7 +541,6 @@ function bindSettingsEvents(): void {
   const summaryTimeEl    = document.getElementById('setting-summary-time') as HTMLInputElement
   const thresholdEl      = document.getElementById('setting-threshold') as HTMLInputElement
   const thresholdDisplay = document.getElementById('threshold-display') as HTMLSpanElement
-  const mouthAlertEl     = document.getElementById('setting-mouth-alert') as HTMLSelectElement
 
   alwaysOnTopEl.addEventListener('change', () => {
     window.electronAPI.saveSettings({ alwaysOnTop: alwaysOnTopEl.checked })
@@ -514,13 +561,6 @@ function bindSettingsEvents(): void {
     window.electronAPI.saveSettings({ threshold: val })
   })
 
-  mouthAlertEl.addEventListener('change', () => {
-    mouthAlertThresholdSeconds = parseInt(mouthAlertEl.value, 10)
-    consecutiveMouthSeconds = 0
-    mouthAlertFired = false
-    window.electronAPI.saveSettings({ mouthAlertThresholdSeconds })
-  })
-
   const meshToggleBtn = document.getElementById('mesh-toggle') as HTMLButtonElement
   meshToggleBtn.addEventListener('click', () => {
     faceMeshVisible = !faceMeshVisible
@@ -529,19 +569,8 @@ function bindSettingsEvents(): void {
     if (!faceMeshVisible) clearFaceMesh()
   })
 
-  document.getElementById('settings-btn')!.addEventListener('click', () => {
-    settingsPanel.classList.remove('hidden')
-  })
-
   document.getElementById('settings-close-btn')!.addEventListener('click', () => {
     settingsPanel.classList.add('hidden')
-  })
-
-  document.getElementById('view-summary-btn')!.addEventListener('click', async () => {
-    settingsPanel.classList.add('hidden')
-    await persistSession()
-    const data = await window.electronAPI.getSummary()
-    showSummaryModal(data)
   })
 
   document.getElementById('recalibrate-btn')!.addEventListener('click', () => {
@@ -552,10 +581,15 @@ function bindSettingsEvents(): void {
   window.electronAPI.onSettingsChanged((newSettings) => {
     state.settings = newSettings
     state.threshold = newSettings.threshold ?? 0.2
-    mouthAlertThresholdSeconds = newSettings.mouthAlertThresholdSeconds ?? 300
+    alertEnabled = newSettings.alertEnabled ?? true
+    alertWindowSeconds = newSettings.alertWindowSeconds ?? 600
+    alertProportionThreshold = newSettings.alertProportionThreshold ?? 0.6
     alwaysOnTopEl.checked  = !!newSettings.alwaysOnTop
     startAtLoginEl.checked = !!newSettings.startAtLogin
-    mouthAlertEl.value = String(mouthAlertThresholdSeconds)
+    alertEnabledToggle.checked = alertEnabled
+    alertWindowSelect.value = String(alertWindowSeconds)
+    alertThresholdSelect.value = String(alertProportionThreshold)
+    alertControlsEl.classList.toggle('disabled', !alertEnabled)
   })
 }
 
@@ -586,7 +620,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
   {
     icon: '⚙️',
     title: 'Settings & Summary',
-    body: "Tap the gear icon (top-right) to adjust detection sensitivity, set a daily summary reminder, and view today's stats anytime."
+    body: "Use the toolbar at the top to adjust settings, view your daily summary, configure alerts, and toggle the camera."
   }
 ]
 
@@ -661,7 +695,7 @@ function showOnboarding(): void {
 
   document.getElementById('ob-skip-btn')!.addEventListener('click', () => {
     onboardingEl.classList.add('hidden')
-    setStatus('Camera not enabled — click ⚙ to set up')
+    setStatus('Camera not enabled — use Settings to set up')
   }, { once: true })
 }
 
@@ -863,16 +897,20 @@ function drawDonut(canvas: HTMLCanvasElement, nosePct: number, mouthPct: number)
 // ── Auth UI ───────────────────────────────────────────────────────────────
 
 function updateAuthButton(): void {
-  const btn = document.getElementById('auth-btn') as HTMLButtonElement
-  if (!isSupabaseConfigured) { btn.style.display = 'none'; return }
+  const accountGroup = document.getElementById('settings-account') as HTMLDivElement
+  const accountOut   = document.getElementById('settings-account-out') as HTMLDivElement
+  const accountIn    = document.getElementById('settings-account-in') as HTMLDivElement
+  const emailEl      = document.getElementById('settings-account-email') as HTMLSpanElement
+  const planEl       = document.getElementById('settings-account-plan') as HTMLElement
+  if (!isSupabaseConfigured) { accountGroup.style.display = 'none'; return }
   if (authState.user) {
-    btn.textContent = '☁️'
-    btn.title = `${authState.user.email} (${authState.isPro ? 'Pro' : 'Free'})`
-    btn.classList.add('connected')
+    accountOut.classList.add('hidden')
+    accountIn.classList.remove('hidden')
+    emailEl.textContent = authState.user.email ?? ''
+    planEl.textContent  = authState.isPro ? 'Pro — cloud sync enabled' : 'Free plan'
   } else {
-    btn.textContent = '👤'
-    btn.title = 'Sign in for cloud sync'
-    btn.classList.remove('connected')
+    accountOut.classList.remove('hidden')
+    accountIn.classList.add('hidden')
   }
 }
 
@@ -914,7 +952,16 @@ function initAuthUI(): void {
 
   if (!isSupabaseConfigured) return
 
-  const authBtn    = document.getElementById('auth-btn')!
+  document.getElementById('settings-signin-btn')!.addEventListener('click', () => {
+    settingsPanel.classList.add('hidden')
+    openAuthModal()
+  })
+
+  document.getElementById('settings-signout-btn')!.addEventListener('click', async () => {
+    await signOut()
+    updateAuthButton()
+  })
+
   const closeBtn   = document.getElementById('auth-close-btn')!
   const submitBtn  = document.getElementById('auth-submit-btn') as HTMLButtonElement
   const signoutBtn = document.getElementById('auth-signout-btn')!
@@ -971,7 +1018,6 @@ function initAuthUI(): void {
     authModal.classList.add('hidden')
   })
 
-  authBtn.addEventListener('click', openAuthModal)
   closeBtn.addEventListener('click', () => authModal.classList.add('hidden'))
 }
 
@@ -994,6 +1040,150 @@ async function restoreSession(): Promise<void> {
   }
 }
 
+// ── Alert popup ───────────────────────────────────────────────────────────────
+
+function updateAlertBtnStyle(): void {
+  if (alertFired && alertEnabled) {
+    toolbarAlertBtn.classList.add('alert-fired')
+  } else {
+    toolbarAlertBtn.classList.remove('alert-fired')
+  }
+}
+
+function formatMS(totalSec: number): string {
+  const m = Math.floor(totalSec / 60)
+  const s = totalSec % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function updateAlertCounter(): void {
+  if (!alertEnabled || alertWindowTotalSeconds === 0) {
+    alertWindowCounterEl.textContent = '—'
+    return
+  }
+  alertWindowCounterEl.textContent = formatMS(alertWindowTotalSeconds)
+}
+
+function showToast(message: string): void {
+  const toast = document.getElementById('toast')!
+  toast.textContent = message
+  toast.classList.remove('show')
+  void (toast as HTMLElement).offsetWidth // force reflow to restart animation
+  toast.classList.add('show')
+}
+
+function resetAlertWindow(): void {
+  alertWindowStartTime = null
+  alertWindowMouthSeconds = 0
+  alertWindowTotalSeconds = 0
+  alertFired = false
+  updateAlertBtnStyle()
+  updateAlertCounter()
+}
+
+function openAlertPopup(): void {
+  alertBackdrop.classList.remove('hidden')
+  alertPopup.classList.remove('hidden')
+}
+
+function closeAlertPopup(): void {
+  alertBackdrop.classList.add('hidden')
+  alertPopup.classList.add('hidden')
+}
+
+function bindAlertPopup(): void {
+  document.getElementById('alert-popup-close')!.addEventListener('click', closeAlertPopup)
+  alertBackdrop.addEventListener('click', closeAlertPopup)
+
+  alertEnabledToggle.addEventListener('change', () => {
+    alertEnabled = alertEnabledToggle.checked
+    alertControlsEl.classList.toggle('disabled', !alertEnabled)
+    if (!alertEnabled) resetAlertWindow()
+    window.electronAPI.saveSettings({ alertEnabled })
+  })
+
+  alertWindowSelect.addEventListener('change', () => {
+    alertWindowSeconds = parseInt(alertWindowSelect.value, 10)
+    resetAlertWindow()
+    window.electronAPI.saveSettings({ alertWindowSeconds })
+  })
+
+  alertThresholdSelect.addEventListener('change', () => {
+    alertProportionThreshold = parseFloat(alertThresholdSelect.value)
+    resetAlertWindow()
+    window.electronAPI.saveSettings({ alertProportionThreshold })
+  })
+
+  document.getElementById('alert-snooze-btn')!.addEventListener('click', () => {
+    resetAlertWindow()
+    showToast('Alert window reset ✓')
+  })
+}
+
+// ── Camera toggle ─────────────────────────────────────────────────────────────
+
+function toggleCamera(): void {
+  if (cameraEnabled) {
+    if (state.noFaceTimer) {
+      clearTimeout(state.noFaceTimer)
+      state.noFaceTimer = null
+    }
+    activeStream?.getTracks().forEach(t => t.stop())
+    activeStream = null
+    videoEl.srcObject = null
+    state.cameraReady = false
+    cameraEnabled = false
+    cameraOffPlaceholder.classList.remove('hidden')
+    videoEl.style.visibility = 'hidden'
+    clearFaceMesh()
+    faceBadge.textContent = ''
+    faceBadge.className = ''
+    cameraWrap.classList.remove('face-ok', 'face-missing')
+    state.faceDetected = false
+    state.paused = true
+    setStateNone()
+    updateStatusDot('')
+    setStatus('Camera off')
+    toolbarCameraBtn.classList.add('camera-off')
+    toolbarCameraLabel.textContent = 'Camera off'
+  } else {
+    cameraOffPlaceholder.classList.add('hidden')
+    videoEl.style.visibility = ''
+    cameraEnabled = true
+    toolbarCameraBtn.classList.remove('camera-off')
+    toolbarCameraLabel.textContent = 'Camera on'
+    startCamera().then(ok => {
+      if (ok) {
+        setStatus('Detecting…')
+      } else {
+        cameraEnabled = false
+        toolbarCameraBtn.classList.add('camera-off')
+        toolbarCameraLabel.textContent = 'Camera off'
+        cameraOffPlaceholder.classList.remove('hidden')
+        videoEl.style.visibility = 'hidden'
+      }
+    })
+  }
+}
+
+// ── Toolbar ───────────────────────────────────────────────────────────────────
+
+function bindToolbar(): void {
+  document.getElementById('tb-settings')!.addEventListener('click', () => {
+    settingsPanel.classList.remove('hidden')
+  })
+
+  document.getElementById('tb-summary')!.addEventListener('click', async () => {
+    await persistSession()
+    const data = await window.electronAPI.getSummary()
+    showSummaryModal(data)
+  })
+
+  toolbarCameraBtn.addEventListener('click', toggleCamera)
+
+  document.getElementById('tb-alert')!.addEventListener('click', openAlertPopup)
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function boot(): Promise<void> {
@@ -1001,6 +1191,8 @@ async function boot(): Promise<void> {
 
   const settings = await loadSettings()
   bindSettingsEvents()
+  bindToolbar()
+  bindAlertPopup()
   initTutorial()
   initAuthUI()
 

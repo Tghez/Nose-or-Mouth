@@ -29,7 +29,9 @@ const store = new Store<StoreSchema>({
     lastSummaryDate: null,
     windowBounds: null,
     cameraPermission: false,
-    mouthAlertThresholdSeconds: 300
+    alertEnabled: true,
+    alertWindowSeconds: 600,
+    alertProportionThreshold: 0.6,
   }
 })
 

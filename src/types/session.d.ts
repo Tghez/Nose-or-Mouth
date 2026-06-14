@@ -15,7 +15,9 @@ export interface StoreSchema {
   lastSummaryDate: string | null
   windowBounds: { x: number; y: number; width: number; height: number } | null
   cameraPermission: boolean
-  mouthAlertThresholdSeconds: number  // 0 = off, 60 = 1 min, 300 = 5 min, 600 = 10 min
+  alertEnabled: boolean
+  alertWindowSeconds: number
+  alertProportionThreshold: number
 }
 
 export interface SummaryData {

@@ -171,21 +171,6 @@
   <div class="settings-group">
     <div class="settings-row">
       <div class="settings-row-label">
-        <span>Mouth Breathing Alert</span>
-        <small>Notify after this long in a row</small>
-      </div>
-      <select id="setting-mouth-alert">
-        <option value="0">Off</option>
-        <option value="60">1 min</option>
-        <option value="300">5 min</option>
-        <option value="600">10 min</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="settings-group">
-    <div class="settings-row">
-      <div class="settings-row-label">
         <span>Daily Summary Time</span>
         <small>When to show today's summary</small>
       </div>
@@ -195,19 +180,27 @@
 
   <div class="settings-group">
     <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-      <span>Today's Summary</span>
-      <button class="btn btn-secondary" id="view-summary-btn" style="width:100%">
-        View Today's Summary
-      </button>
-    </div>
-  </div>
-
-  <div class="settings-group">
-    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
       <span>Re-run Calibration</span>
       <button class="btn btn-secondary" id="recalibrate-btn" style="width:100%">
         Calibrate Detection Threshold
       </button>
+    </div>
+  </div>
+
+  <div class="settings-group" id="settings-account">
+    <div class="settings-row" id="settings-account-out">
+      <div class="settings-row-label">
+        <span>Account</span>
+        <small>Sign in to enable cloud sync</small>
+      </div>
+      <button class="btn btn-secondary" id="settings-signin-btn" style="font-size:11px;padding:5px 12px;flex-shrink:0">Sign In</button>
+    </div>
+    <div class="settings-row hidden" id="settings-account-in">
+      <div class="settings-row-label">
+        <span id="settings-account-email"></span>
+        <small id="settings-account-plan"></small>
+      </div>
+      <button class="btn btn-secondary" id="settings-signout-btn" style="font-size:11px;padding:5px 12px;flex-shrink:0">Sign Out</button>
     </div>
   </div>
 
@@ -236,19 +229,110 @@
   </div>
 </div>
 
+<!-- ── Toast notification ──────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<!-- ── Alert config popup ─────────────────────────────────────────────── -->
+<div id="alert-backdrop" class="hidden"></div>
+<div id="alert-popup" class="hidden">
+  <div id="alert-popup-header">
+    <span>Breathing Alert</span>
+    <button id="alert-popup-close">✕</button>
+  </div>
+  <div id="alert-popup-desc">
+    Get notified when you breathe through your mouth too much within a set time window. The alert fires once per window if the mouth-breathing proportion exceeds your threshold.
+  </div>
+  <div class="alert-row" id="alert-counter-row">
+    <div class="alert-row-label">
+      <span>Window Progress</span>
+      <small>Time elapsed in current window</small>
+    </div>
+    <span id="alert-window-counter">—</span>
+  </div>
+  <div class="alert-row">
+    <label class="alert-row-label" for="alert-enabled-toggle">
+      <span>Alerts Enabled</span>
+    </label>
+    <label class="toggle">
+      <input type="checkbox" id="alert-enabled-toggle" checked>
+      <div class="toggle-track"></div>
+    </label>
+  </div>
+  <div id="alert-controls">
+    <div class="alert-row">
+      <div class="alert-row-label">
+        <span>Time Window</span>
+        <small>Rolling period to measure</small>
+      </div>
+      <select id="alert-window-select">
+        <option value="300">5 min</option>
+        <option value="600" selected>10 min</option>
+        <option value="900">15 min</option>
+        <option value="1800">30 min</option>
+      </select>
+    </div>
+    <div class="alert-row">
+      <div class="alert-row-label">
+        <span>Mouth % Threshold</span>
+        <small>Alert if mouth breathing exceeds</small>
+      </div>
+      <select id="alert-threshold-select">
+        <option value="0.6" selected>60%</option>
+        <option value="0.7">70%</option>
+        <option value="0.8">80%</option>
+        <option value="0.9">90%</option>
+        <option value="1.0">100%</option>
+      </select>
+    </div>
+    <div class="alert-row">
+      <div class="alert-row-label">
+        <span>Snooze / Reset</span>
+        <small>Re-arm the alert for next cycle</small>
+      </div>
+      <button class="btn btn-secondary" id="alert-snooze-btn" style="font-size:11px;padding:5px 12px">Reset</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Main app ────────────────────────────────────────────────────────── -->
 <div id="app">
-  <div id="top-bar">
-    <div id="top-bar-right">
-      <button id="auth-btn" title="Sign in for cloud sync">👤</button>
-      <button id="settings-btn" title="Settings">⚙</button>
-    </div>
+  <div id="toolbar">
+    <button class="tb-btn" id="tb-settings">
+      <svg class="tb-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+        <path d="M19.14,12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54C14.46,2.18,14.25,2,14,2h-3.84c-.24,0-.43.17-.47.41l-.36,2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47,0-.59.22L2.74,8.87c-.12.21-.08.47.12.61l2.03,1.58C4.77,10.81,4.73,11.14,4.73,11.47s.02.64.07.94l-2.03,1.58c-.18.14-.23.41-.12.61l1.92,3.32c.12.22.37.29.59.22l2.39-.96c.5.38,1.03.7,1.62.94l.36,2.54c.05.24.24.41.48.41h3.84c.24,0,.44-.17.47-.41l.36-2.54c.59-.24,1.13-.56,1.62-.94l2.39.96c.22.08.47,0,.59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6,3.6,1.62,3.6,3.6-1.62,3.6-3.6,3.6z"/>
+      </svg>
+      <span class="tb-label">Settings</span>
+    </button>
+    <button class="tb-btn" id="tb-summary">
+      <svg class="tb-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+        <path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z"/>
+      </svg>
+      <span class="tb-label">Summary</span>
+    </button>
+    <button class="tb-btn" id="tb-camera">
+      <svg class="tb-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+        <path d="M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z"/>
+      </svg>
+      <span class="tb-label" id="tb-camera-label">Camera on</span>
+    </button>
+    <button class="tb-btn" id="tb-alert">
+      <svg class="tb-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+        <path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21"/>
+      </svg>
+      <span class="tb-label">Alert</span>
+    </button>
   </div>
 
   <div id="camera-section">
     <div id="camera-wrap">
       <video id="video" autoplay playsinline muted></video>
       <canvas id="face-canvas" width="320" height="180"></canvas>
+      <div id="camera-off-placeholder" class="hidden">
+        <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor" style="opacity:0.3">
+          <path d="M3.27,2L2,3.27L4.73,6C4.27,6.13 4,6.5 4,7V17A1,1 0 0,0 5,18H17.73L19.73,20L21,18.73L3.27,2M17,10.5L21,6.5V17.5L17,13.5V17C17,17.55 16.55,18 16,18H6.27L8.27,16H16V11.27L17,12.27V10.5M16,6A1,1 0 0,1 17,7V8.18L19,6.18V7L17,9V10.5L15,8.5V7H13L11,5H16Z"/>
+        </svg>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:6px">Camera off</div>
+      </div>
       <div id="status-dot"></div>
       <div id="face-badge"></div>
     </div>
