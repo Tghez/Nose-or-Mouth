@@ -109,7 +109,7 @@ A slider in Settings shifts the threshold up or down from the calibrated baselin
 
 > **On a managed Mac where "Open Anyway" is greyed out?** Remove the quarantine flag before opening the DMG:
 > ```bash
-> xattr -d com.apple.quarantine ~/Downloads/Mouth\ Breather-*.dmg
+> xattr -d com.apple.quarantine ~/Downloads/Mouth.Breather-*.dmg
 > ```
 
 ---
