@@ -1,6 +1,6 @@
 import './styles.css'
-import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
-import type { FaceLandmarkerResult } from '@mediapipe/tasks-vision'
+import { FaceLandmarker, HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
+import type { FaceLandmarkerResult, HandLandmarkerResult } from '@mediapipe/tasks-vision'
 import type { AppState, CalibrationState } from '../../types/state'
 import type { StoreSchema, SummaryData } from '../../types/session'
 import { initAuth, signIn, signUp, signOut, syncSession, authState } from './auth'
@@ -26,6 +26,7 @@ let cameraEnabled = true
 const state: AppState = {
   mouthOpen: false,
   faceDetected: false,
+  lipsOccluded: false,
   paused: true,
   noFaceTimer: null,
   noseSeconds: 0,
@@ -100,6 +101,7 @@ function formatTime(totalSeconds: number): string {
 // ── MediaPipe FaceLandmarker ──────────────────────────────────────────────────
 
 let faceLandmarker: FaceLandmarker | null = null
+let handLandmarker: HandLandmarker | null = null
 let lastSendTime = 0
 
 async function initMediaPipe(): Promise<boolean> {
@@ -118,6 +120,21 @@ async function initMediaPipe(): Promise<boolean> {
       minFacePresenceScore: 0.2,
       minTrackingConfidence: 0.2,
     })
+    try {
+      handLandmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: './mediapipe-wasm/hand_landmarker.task',
+          delegate: 'CPU',
+        },
+        runningMode: 'VIDEO',
+        numHands: 2,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceScore: 0.5,
+        minTrackingConfidence: 0.5,
+      })
+    } catch (handErr) {
+      console.warn('HandLandmarker init failed — lip occlusion detection disabled:', handErr)
+    }
   } catch (err) {
     console.error('FaceLandmarker init error:', err)
     setStatus('Detector init failed')
@@ -140,8 +157,10 @@ function startDetectionLoop(): void {
       lastSendTime = now
       if (videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
         try {
-          const results = faceLandmarker.detectForVideo(videoEl, performance.now())
-          onFaceLandmarkerResults(results)
+          const ts = performance.now()
+          const faceResults = faceLandmarker.detectForVideo(videoEl, ts)
+          const handResults = handLandmarker?.detectForVideo(videoEl, ts) ?? null
+          onFaceLandmarkerResults(faceResults, handResults)
         } catch (err) {
           console.error('detectForVideo error:', err)
         }
@@ -187,7 +206,33 @@ function classifyMouth(ratio: number): boolean {
   return avg > state.threshold
 }
 
-function onFaceLandmarkerResults(results: FaceLandmarkerResult): void {
+function isLipsOccluded(
+  lm: FaceLandmarkerResult['faceLandmarks'][0],
+  handResults: HandLandmarkerResult
+): boolean {
+  if (!handResults.landmarks || handResults.landmarks.length === 0) return false
+
+  // Both mouth corners must be covered — ensures the hand spans the full mouth width.
+  // A hand near the center or touching one side won't trigger this.
+  const eyeDist = Math.hypot(lm[33].x - lm[263].x, lm[33].y - lm[263].y)
+  const r = eyeDist * 0.35
+
+  for (const handLms of handResults.landmarks) {
+    let leftCovered = false
+    let rightCovered = false
+    for (const p of handLms) {
+      if (Math.hypot(p.x - lm[61].x, p.y - lm[61].y) < r) leftCovered = true
+      if (Math.hypot(p.x - lm[291].x, p.y - lm[291].y) < r) rightCovered = true
+    }
+    if (leftCovered && rightCovered) return true
+  }
+  return false
+}
+
+function onFaceLandmarkerResults(
+  results: FaceLandmarkerResult,
+  handResults: HandLandmarkerResult | null
+): void {
   if (!results.faceLandmarks || results.faceLandmarks.length === 0) {
     clearFaceMesh()
     handleNoFace()
@@ -195,6 +240,18 @@ function onFaceLandmarkerResults(results: FaceLandmarkerResult): void {
   }
   handleFaceDetected()
   drawFaceMesh(results)
+
+  const lm = results.faceLandmarks[0]
+  if (handResults && isLipsOccluded(lm, handResults)) {
+    if (!state.lipsOccluded) ratioBuffer.length = 0
+    state.lipsOccluded = true
+    setStateWaiting()
+    setStatus('Lips covered — waiting')
+    window.electronAPI.updateTrayIcon('none')
+    return
+  }
+  if (state.lipsOccluded) ratioBuffer.length = 0
+  state.lipsOccluded = false
 
   const ratio = getLipOpenRatio(results)
   state.mouthOpen = classifyMouth(ratio)
@@ -368,7 +425,7 @@ function updateCounterUI(): void {
 let saveDebounceCount = 0
 
 setInterval(() => {
-  if (state.paused || !state.faceDetected) {
+  if (state.paused || !state.faceDetected || state.lipsOccluded) {
     alertWindowStartTime = null
     alertWindowMouthSeconds = 0
     alertWindowTotalSeconds = 0

@@ -3,6 +3,7 @@ import type { StoreSchema } from './session'
 export interface AppState {
   mouthOpen: boolean
   faceDetected: boolean
+  lipsOccluded: boolean
   paused: boolean
   noFaceTimer: ReturnType<typeof setTimeout> | null
   noseSeconds: number
