@@ -573,6 +573,10 @@ async function loadSettings(): Promise<StoreSchema> {
   const effective = isStale ? 0.07 : stored
   state.threshold = effective
 
+  const lightMode = !!s.lightMode
+  document.body.classList.toggle('light', lightMode)
+  ;(document.getElementById('setting-light-mode') as HTMLInputElement).checked = lightMode
+
   ;(document.getElementById('setting-always-on-top') as HTMLInputElement).checked = !!s.alwaysOnTop
   ;(document.getElementById('setting-start-at-login') as HTMLInputElement).checked = !!s.startAtLogin
   ;(document.getElementById('setting-summary-time') as HTMLInputElement).value = s.summaryTime ?? '18:00'
@@ -594,11 +598,18 @@ async function loadSettings(): Promise<StoreSchema> {
 }
 
 function bindSettingsEvents(): void {
+  const lightModeEl      = document.getElementById('setting-light-mode') as HTMLInputElement
   const alwaysOnTopEl    = document.getElementById('setting-always-on-top') as HTMLInputElement
   const startAtLoginEl   = document.getElementById('setting-start-at-login') as HTMLInputElement
   const summaryTimeEl    = document.getElementById('setting-summary-time') as HTMLInputElement
   const thresholdEl      = document.getElementById('setting-threshold') as HTMLInputElement
   const thresholdDisplay = document.getElementById('threshold-display') as HTMLSpanElement
+
+  lightModeEl.addEventListener('change', () => {
+    const isLight = lightModeEl.checked
+    document.body.classList.toggle('light', isLight)
+    window.electronAPI.saveSettings({ lightMode: isLight })
+  })
 
   alwaysOnTopEl.addEventListener('change', () => {
     window.electronAPI.saveSettings({ alwaysOnTop: alwaysOnTopEl.checked })
@@ -640,6 +651,9 @@ function bindSettingsEvents(): void {
     alertEnabled = newSettings.alertEnabled ?? true
     alertWindowSeconds = newSettings.alertWindowSeconds ?? 600
     alertProportionThreshold = newSettings.alertProportionThreshold ?? 0.8
+    const isLight = !!newSettings.lightMode
+    document.body.classList.toggle('light', isLight)
+    lightModeEl.checked    = isLight
     alwaysOnTopEl.checked  = !!newSettings.alwaysOnTop
     startAtLoginEl.checked = !!newSettings.startAtLogin
     alertEnabledToggle.checked = alertEnabled
@@ -915,11 +929,16 @@ function drawDonut(canvas: HTMLCanvasElement, nosePct: number, mouthPct: number)
   const start = -Math.PI / 2
   const noseFrac = nosePct / 100
 
+  const cs = getComputedStyle(document.body)
+  const surface2 = cs.getPropertyValue('--surface2').trim() || '#1e1e1e'
+  const textColor = cs.getPropertyValue('--text').trim() || '#e5e5e5'
+  const textDim   = cs.getPropertyValue('--text-dim').trim() || '#6b7280'
+
   ctx.clearRect(0, 0, size, size)
 
   ctx.beginPath()
   ctx.arc(cx, cy, r, 0, TAU)
-  ctx.strokeStyle = '#1e1e1e'
+  ctx.strokeStyle = surface2
   ctx.lineWidth = lw
   ctx.stroke()
 
@@ -941,13 +960,13 @@ function drawDonut(canvas: HTMLCanvasElement, nosePct: number, mouthPct: number)
     ctx.stroke()
   }
 
-  ctx.fillStyle = '#e5e5e5'
+  ctx.fillStyle = textColor
   ctx.font = `bold ${Math.round(size * 0.17)}px system-ui`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(`${nosePct}%`, cx, cy - size * 0.05)
   ctx.font = `${Math.round(size * 0.09)}px system-ui`
-  ctx.fillStyle = '#6b7280'
+  ctx.fillStyle = textDim
   ctx.fillText('nose', cx, cy + size * 0.1)
 }
 

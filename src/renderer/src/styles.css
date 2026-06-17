@@ -16,6 +16,65 @@
   --radius-sm: 6px;
 }
 
+/* ── Light mode overrides ────────────────────────────────────────────────── */
+body.light {
+  --bg: #f5f5f5;
+  --surface: #ffffff;
+  --surface2: #eeeeee;
+  --border: #d8d8d8;
+  --text: #111111;
+  --text-dim: #6b7280;
+  --text-faint: #9ca3af;
+}
+
+body.light .overlay {
+  background: rgba(245, 245, 245, 0.96);
+}
+
+body.light #tutorial-overlay {
+  background: rgba(245, 245, 245, 0.96);
+}
+
+body.light #alert-backdrop {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+body.light #toolbar {
+  background: linear-gradient(180deg, #f0f0f0 0%, #e6e6e6 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.light .tb-btn {
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  color: rgba(80, 90, 100, 0.85);
+}
+
+body.light .tb-btn:hover {
+  color: #111827;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+body.light .tb-btn::after {
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.08) 0%, transparent 72%);
+}
+
+body.light .toggle.toggle-bw .toggle-track {
+  background: #b0b0b0;
+}
+
+body.light .toggle.toggle-bw input:checked + .toggle-track {
+  background: #707070;
+}
+
+body.light .toggle.toggle-bw input:checked + .toggle-track::after {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+body.light #alert-popup {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
 /* ── Reset ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
