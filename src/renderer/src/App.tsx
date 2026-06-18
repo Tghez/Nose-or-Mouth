@@ -1,4 +1,4 @@
-import { useRef, type RefObject } from 'react'
+import { useRef, useEffect, type RefObject } from 'react'
 import { useAppContext } from './store/AppContext'
 import { useAuthContext } from './store/AuthContext'
 import { useCamera } from './hooks/useCamera'
@@ -22,6 +22,8 @@ import { TutorialOverlay } from './features/tutorial/TutorialOverlay'
 import { OnboardingOverlay } from './features/onboarding/OnboardingOverlay'
 import { AlertPopup } from './features/alerts/AlertPopup'
 import { LimitOverlay } from './features/limit/LimitOverlay'
+import { MiniView } from './features/mini/MiniView'
+import { TitleBar } from './components/TitleBar'
 import { Toolbar } from './components/Toolbar'
 import { Toast } from './components/Toast'
 import { StatusBar } from './components/StatusBar'
@@ -44,6 +46,19 @@ export default function App() {
 
   useDetection(videoRef, faceCanvasRef, calibrationRefs)
   useIpc(persistSession)
+
+  useEffect(() => {
+    window.electronAPI.onMiniModeChanged((mini) => {
+      dispatch({ type: 'SET_MINI_MODE', payload: mini })
+    })
+    return () => window.electronAPI.removeAllListeners('mini-mode-changed')
+  }, [])
+
+  const { showSettings, showSummary, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay } = state
+  useEffect(() => {
+    const anyOpen = showSettings || showSummary || showCalibration || showTutorial || showOnboarding || showAuthModal || showLimitOverlay
+    window.electronAPI.setModalOpen(anyOpen)
+  }, [showSettings, showSummary, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay])
 
   // Single boot effect
   const bootRef = useRef(async () => {
@@ -157,6 +172,7 @@ export default function App() {
 
   return (
     <>
+      {state.isMiniMode && <MiniView />}
       <OnboardingOverlay onAllow={handleOnboardingAllow} />
       <TutorialOverlay onFinish={handleTutorialFinish} />
       <CalibrationModal
@@ -172,7 +188,8 @@ export default function App() {
       <AlertPopup onReset={resetAlertWindow} onShowToast={handleShowToast} />
       <SettingsPanel onRecalibrate={handleRecalibrate} onSignInClick={handleSettingsSignIn} />
       <Toast />
-      <div id="app">
+      {!state.isMiniMode && <TitleBar />}
+      <div id="app" className={state.isMiniMode ? 'app-mini-hidden' : undefined}>
         <Toolbar onSummaryClick={handleSummaryClick} />
         <CameraSection
           videoRef={videoRef}

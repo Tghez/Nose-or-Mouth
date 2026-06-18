@@ -9,6 +9,7 @@ export interface AppContextState {
   paused: boolean
   cameraReady: boolean
   mediapipeReady: boolean
+  isMiniMode: boolean
   noseSeconds: number
   mouthSeconds: number
   baseNoseSeconds: number
@@ -53,6 +54,7 @@ export type AppAction =
   | { type: 'SET_TOAST'; payload: string | null }
   | { type: 'SET_SUMMARY_DATA'; payload: SummaryData }
   | { type: 'RESET_DAY' }
+  | { type: 'SET_MINI_MODE'; payload: boolean }
 
 const initialState: AppContextState = {
   mouthOpen: false,
@@ -61,6 +63,7 @@ const initialState: AppContextState = {
   paused: true,
   cameraReady: false,
   mediapipeReady: false,
+  isMiniMode: false,
   noseSeconds: 0,
   mouthSeconds: 0,
   baseNoseSeconds: 0,
@@ -135,6 +138,8 @@ function appReducer(state: AppContextState, action: AppAction): AppContextState 
       return { ...state, summaryData: action.payload }
     case 'RESET_DAY':
       return { ...state, noseSeconds: 0, mouthSeconds: 0, sessionStart: new Date().toISOString() }
+    case 'SET_MINI_MODE':
+      return { ...state, isMiniMode: action.payload }
     default:
       return state
   }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, session } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, session, screen } from 'electron'
 import type { NativeImage } from 'electron'
 import { join } from 'path'
 import { execFileSync } from 'child_process'
@@ -35,9 +35,17 @@ const store = new Store<StoreSchema>({
   }
 })
 
+const MINI_W = 280
+const MINI_H = 100
+const FULL_W = 420
+const FULL_H = 538  // 510px app + 28px custom title bar
+
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let lastSessionPayload: Session | null = null
+let isMiniMode = false
+let isAnyModalOpen = false
+let savedBounds: { x: number; y: number; width: number; height: number } | null = null
 
 // ── Tray icon generation ──────────────────────────────────────────────────────
 
@@ -55,18 +63,61 @@ const TRAY_ICONS: Record<string, () => NativeImage> = {
   none:  () => makeTrayIcon('#6b7280')
 }
 
+// ── Mini mode ─────────────────────────────────────────────────────────────────
+
+function enterMiniMode(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  isMiniMode = true
+  savedBounds = mainWindow.getBounds()
+  mainWindow.setAlwaysOnTop(true)
+  // Notify renderer first so React paints MiniView before the window shrinks
+  mainWindow.webContents.send('mini-mode-changed', true)
+  setTimeout(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    const { workArea } = screen.getDisplayNearestPoint({ x: savedBounds!.x, y: savedBounds!.y })
+    mainWindow.setMinimumSize(1, 1)
+    mainWindow.setMaximumSize(0, 0)
+    mainWindow.setBounds({
+      x: workArea.x + workArea.width - MINI_W - 16,
+      y: workArea.y + 16,
+      width: MINI_W,
+      height: MINI_H
+    })
+    mainWindow.setMinimumSize(MINI_W, MINI_H)
+    mainWindow.setMaximumSize(MINI_W, MINI_H)
+  }, 60)
+}
+
+function exitMiniMode(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  isMiniMode = false
+  mainWindow.setAlwaysOnTop(store.get('alwaysOnTop'))
+  mainWindow.setMinimumSize(1, 1)
+  mainWindow.setMaximumSize(0, 0)
+  if (savedBounds) {
+    mainWindow.setBounds({ ...savedBounds, width: FULL_W, height: FULL_H })
+    savedBounds = null
+  } else {
+    mainWindow.setSize(FULL_W, FULL_H)
+  }
+  mainWindow.setMinimumSize(FULL_W, FULL_H)
+  mainWindow.setMaximumSize(FULL_W, FULL_H)
+  // Notify renderer after window is at full size so content renders into the right viewport
+  setTimeout(() => mainWindow?.webContents.send('mini-mode-changed', false), 30)
+}
+
 // ── Window ────────────────────────────────────────────────────────────────────
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 420,
-    height: 510,
+    height: 538,
     minWidth: 420,
-    minHeight: 510,
+    minHeight: 538,
     maxWidth: 420,
-    maxHeight: 510,
+    maxHeight: 538,
     resizable: false,
-    frame: true,
+    frame: false,
     autoHideMenuBar: true,
     alwaysOnTop: store.get('alwaysOnTop'),
     skipTaskbar: false,
@@ -76,7 +127,8 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,
-      allowRunningInsecureContent: false
+      allowRunningInsecureContent: false,
+      backgroundThrottling: false
     }
   })
 
@@ -86,6 +138,13 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  mainWindow.on('minimize', () => {
+    if (!isMiniMode && !isAnyModalOpen) {
+      mainWindow!.restore()
+      enterMiniMode()
+    }
+  })
 
   mainWindow.on('close', () => {
     appState.isQuitting = true
@@ -232,6 +291,23 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('get-all-sessions', async () => {
     return storage.readAll()
+  })
+
+  ipcMain.handle('set-modal-open', async (_event, open: boolean) => {
+    isAnyModalOpen = open
+  })
+
+  ipcMain.handle('exit-mini-mode', async () => {
+    exitMiniMode()
+  })
+
+  ipcMain.handle('enter-mini-mode', async () => {
+    enterMiniMode()
+  })
+
+  ipcMain.handle('quit-app', async () => {
+    appState.isQuitting = true
+    app.quit()
   })
 
   ipcMain.handle('get-summary', async (_event, date?: string) => {
