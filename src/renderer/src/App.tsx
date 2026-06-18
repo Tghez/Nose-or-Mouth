@@ -26,7 +26,6 @@ import { MiniView } from './features/mini/MiniView'
 import { TitleBar } from './components/TitleBar'
 import { Toolbar } from './components/Toolbar'
 import { Toast } from './components/Toast'
-import { StatusBar } from './components/StatusBar'
 
 export default function App() {
   const { state, dispatch } = useAppContext()
@@ -198,7 +197,6 @@ export default function App() {
         />
         <StateSection />
         <StatsSection />
-        <StatusBar />
       </div>
     </>
   )

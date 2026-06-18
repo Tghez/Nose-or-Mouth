@@ -48,6 +48,7 @@ export function useCounters(
   useEffect(() => { syncRef.current       = syncSession      }, [syncSession])
 
   async function persistSession(): Promise<void> {
+    if (!isProRef.current) return
     const payload = {
       date: todayString(),
       sessionStart: sessionStartRef.current,

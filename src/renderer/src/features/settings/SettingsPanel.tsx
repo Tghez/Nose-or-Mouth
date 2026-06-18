@@ -157,7 +157,7 @@ export function SettingsPanel({ onRecalibrate, onSignInClick }: SettingsPanelPro
               <div className="settings-row" id="settings-account-in">
                 <div className="settings-row-label">
                   <span id="settings-account-email">{user.email}</span>
-                  <small id="settings-account-plan">{isPro ? 'Pro — cloud sync enabled' : 'Free plan'}</small>
+                  <small id="settings-account-plan">{isPro ? 'Pro Plan' : 'Free Plan'}</small>
                 </div>
                 <button
                   className="btn btn-secondary"

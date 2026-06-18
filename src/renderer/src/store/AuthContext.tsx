@@ -4,6 +4,12 @@ import type { User } from '@supabase/supabase-js'
 import type { Session } from '../../../types/session'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
+export interface WeekSession {
+  date: string
+  noseSeconds: number
+  mouthSeconds: number
+}
+
 interface AuthState {
   user: User | null
   isPro: boolean
@@ -15,6 +21,7 @@ interface AuthContextValue extends AuthState {
   signUp: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
   syncSession: (session: Session) => Promise<void>
+  fetchWeekSessions: () => Promise<WeekSession[]>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -77,8 +84,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, { onConflict: 'user_id,date' })
   }, [authState.user])
 
+  const fetchWeekSessions = useCallback(async (): Promise<WeekSession[]> => {
+    if (!supabase || !authState.user) return []
+    const sevenDaysAgo = new Date(Date.now() - 6 * 86400_000).toISOString().slice(0, 10)
+    const { data } = await supabase
+      .from('sessions')
+      .select('date,nose_seconds,mouth_seconds')
+      .eq('user_id', authState.user.id)
+      .gte('date', sevenDaysAgo)
+      .order('date', { ascending: true })
+    if (!data) return []
+    return data.map(row => ({
+      date:         row.date as string,
+      noseSeconds:  row.nose_seconds as number,
+      mouthSeconds: row.mouth_seconds as number,
+    }))
+  }, [authState.user])
+
   return (
-    <AuthContext.Provider value={{ ...authState, initAuth, signIn, signUp, signOut, syncSession }}>
+    <AuthContext.Provider value={{ ...authState, initAuth, signIn, signUp, signOut, syncSession, fetchWeekSessions }}>
       {children}
     </AuthContext.Provider>
   )

@@ -3,10 +3,12 @@ import { formatTime } from '../../lib/utils'
 
 export function StatsSection() {
   const { state } = useAppContext()
-  const { noseSeconds, mouthSeconds } = state
+  const { noseSeconds, mouthSeconds, baseNoseSeconds, baseMouthSeconds } = state
 
-  const total = noseSeconds + mouthSeconds
-  const nosePct  = total > 0 ? Math.round((noseSeconds / total) * 100) : 0
+  const totalNose  = baseNoseSeconds  + noseSeconds
+  const totalMouth = baseMouthSeconds + mouthSeconds
+  const total = totalNose + totalMouth
+  const nosePct  = total > 0 ? Math.round((totalNose / total) * 100) : 0
   const mouthPct = total > 0 ? 100 - nosePct : 0
 
   return (
@@ -14,12 +16,12 @@ export function StatsSection() {
       <div id="stats-row">
         <div className="stat-item nose">
           <div className="stat-icon">👃</div>
-          <div className="stat-value" id="nose-time">{formatTime(noseSeconds)}</div>
+          <div className="stat-value" id="nose-time">{formatTime(totalNose)}</div>
           <div className="stat-label">Nose</div>
         </div>
         <div className="stat-item mouth">
           <div className="stat-icon">👄</div>
-          <div className="stat-value" id="mouth-time">{formatTime(mouthSeconds)}</div>
+          <div className="stat-value" id="mouth-time">{formatTime(totalMouth)}</div>
           <div className="stat-label">Mouth</div>
         </div>
       </div>
