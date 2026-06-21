@@ -27,6 +27,11 @@ export function SummaryModal() {
   if (!summaryData) return null
 
   const { date, noseSeconds, mouthSeconds, streak } = summaryData
+  const [y, mo, d] = date.split('-').map(Number)
+  const localDate  = new Date(y, mo - 1, d)
+  const weekday    = localDate.toLocaleDateString('en-US', { weekday: 'long' })
+  const fullDate   = localDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+
   const total    = noseSeconds + mouthSeconds
   const nosePct  = total > 0 ? Math.round((noseSeconds / total) * 100) : 0
   const mouthPct = 100 - nosePct
@@ -56,7 +61,10 @@ export function SummaryModal() {
   return (
     <div id="summary-modal" className={`overlay${showSummary ? '' : ' hidden'}`}>
       <h2>Daily Summary</h2>
-      <div id="summary-date">{date}</div>
+      <div id="summary-date">
+        <span className="summary-date-weekday">{weekday}</span>
+        <span className="summary-date-full">{fullDate}</span>
+      </div>
 
       {isPro && (
         <div id="summary-tabs">

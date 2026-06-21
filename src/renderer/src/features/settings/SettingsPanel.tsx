@@ -3,6 +3,17 @@ import { useAuthContext } from '../../store/AuthContext'
 import { Toggle } from '../../components/Toggle'
 import { isSupabaseConfigured } from '../../lib/supabase'
 
+const SENSITIVITY_STAGES = [
+  { label: 'Very Sensitive', value: 0.010 },
+  { label: 'Sensitive',      value: 0.070 },
+  { label: 'Balanced',       value: 0.130 },
+  { label: 'Relaxed',        value: 0.190 },
+  { label: 'Lenient',        value: 0.250 },
+] as const
+
+const THRESHOLD_MIN = 0.010
+const THRESHOLD_MAX = 0.250
+
 interface SettingsPanelProps {
   onRecalibrate: () => void
   onSignInClick: () => void
@@ -12,6 +23,9 @@ export function SettingsPanel({ onRecalibrate, onSignInClick }: SettingsPanelPro
   const { state, dispatch } = useAppContext()
   const { user, isPro, signOut } = useAuthContext()
   const { showSettings, settings, threshold } = state
+
+  const activeStage = SENSITIVITY_STAGES.find(s => Math.abs(s.value - threshold) < 0.001)
+  const dotPct = ((threshold - THRESHOLD_MIN) / (THRESHOLD_MAX - THRESHOLD_MIN)) * 100
 
   function saveSetting(partial: Partial<typeof settings>): void {
     window.electronAPI.saveSettings(partial)
@@ -86,24 +100,25 @@ export function SettingsPanel({ onRecalibrate, onSignInClick }: SettingsPanelPro
           <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
             <div className="settings-row-label">
               <span>Detection Sensitivity</span>
-              <small>Lower = more sensitive (triggers easier)</small>
+              <small>Tap a level to set sensitivity, or calibrate for a custom value</small>
             </div>
-            <div className="settings-slider-wrap">
-              <div className="settings-slider-row">
-                <span style={{ fontSize: '11px', color: 'var(--text-dim)', width: '40px' }}>Low</span>
-                <input
-                  type="range"
-                  id="setting-threshold"
-                  min="0.01"
-                  max="0.25"
-                  step="0.005"
-                  value={threshold}
-                  onChange={e => handleThreshold(e.target.value)}
-                />
-                <span style={{ fontSize: '11px', color: 'var(--text-dim)', width: '40px', textAlign: 'right' }}>High</span>
+            <div className="sensitivity-track-wrap">
+              <div className="sensitivity-labels">
+                {SENSITIVITY_STAGES.map(stage => (
+                  <button
+                    key={stage.value}
+                    className={`sensitivity-label${activeStage?.value === stage.value ? ' active' : ''}`}
+                    onClick={() => handleThreshold(String(stage.value))}
+                  >
+                    {stage.label}
+                  </button>
+                ))}
               </div>
-              <div style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-dim)' }}>
-                Threshold: <span id="threshold-display">{threshold.toFixed(3)}</span>
+              <div className="sensitivity-track">
+                <div className="sensitivity-dot-wrap" style={{ left: `${dotPct}%` }}>
+                  <div className="sensitivity-dot" />
+                  <span className="sensitivity-threshold-label">{threshold.toFixed(3)}</span>
+                </div>
               </div>
             </div>
           </div>
