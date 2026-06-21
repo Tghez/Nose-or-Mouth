@@ -13,6 +13,11 @@ export interface ElectronAPI {
   getSummary: (date?: string) => Promise<SummaryData>
   onDailySummaryTrigger: (cb: (data: SummaryData) => void) => void
   onSettingsChanged: (cb: (settings: StoreSchema) => void) => void
+  exitMiniMode: () => Promise<void>
+  enterMiniMode: () => Promise<void>
+  quitApp: () => Promise<void>
+  setModalOpen: (open: boolean) => Promise<void>
+  onMiniModeChanged: (cb: (mini: boolean) => void) => void
   removeAllListeners: (channel: string) => void
 }
 

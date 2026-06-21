@@ -1,6 +1,7 @@
 import { defineConfig } from 'electron-vite'
 import { resolve } from 'path'
 import { createLogger } from 'vite'
+import react from '@vitejs/plugin-react'
 
 const rendererLogger = createLogger()
 const _warn = rendererLogger.warn.bind(rendererLogger)
@@ -31,6 +32,7 @@ export default defineConfig({
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
     customLogger: rendererLogger,
+    plugins: [react()],
     optimizeDeps: {
       exclude: ['@mediapipe/tasks-vision']
     },

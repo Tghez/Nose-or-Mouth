@@ -17,6 +17,11 @@ const api: ElectronAPI = {
   // ── Main → Renderer (push events) ────────────────────────────────────────
   onDailySummaryTrigger: (cb) => ipcRenderer.on('daily-summary-trigger', (_e, data) => cb(data)),
   onSettingsChanged:     (cb) => ipcRenderer.on('settings-changed', (_e, data) => cb(data)),
+  exitMiniMode:          ()       => ipcRenderer.invoke('exit-mini-mode'),
+  enterMiniMode:         ()       => ipcRenderer.invoke('enter-mini-mode'),
+  quitApp:               ()       => ipcRenderer.invoke('quit-app'),
+  setModalOpen:          (open)   => ipcRenderer.invoke('set-modal-open', open),
+  onMiniModeChanged:     (cb) => ipcRenderer.on('mini-mode-changed', (_e, mini) => cb(mini)),
 
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
 }
