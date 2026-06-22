@@ -1,14 +1,12 @@
 import { useAppContext } from '../store/AppContext'
-import { useAuthContext } from '../store/AuthContext'
 import { todayString } from '../lib/utils'
 
 const FREE_DAILY_LIMIT_SECONDS = 600
 
 export function useSession() {
   const { dispatch } = useAppContext()
-  const { isPro } = useAuthContext()
 
-  async function restoreSession(): Promise<void> {
+  async function restoreSession(isPro: boolean): Promise<void> {
     const sess = await window.electronAPI.getSession(todayString())
     const baseNose  = sess?.noseBreathingSeconds  ?? 0
     const baseMouth = sess?.mouthBreathingSeconds ?? 0

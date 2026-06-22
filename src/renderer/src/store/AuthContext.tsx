@@ -16,7 +16,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  initAuth: (onProChange?: (isPro: boolean) => void) => Promise<void>
+  initAuth: (onProChange?: (isPro: boolean) => void) => Promise<boolean>
   signIn: (email: string, password: string) => Promise<string | null>
   signUp: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
@@ -39,14 +39,15 @@ async function fetchIsPro(userId: string): Promise<boolean> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>({ user: null, isPro: false })
 
-  const initAuth = useCallback(async (onProChange?: (isPro: boolean) => void) => {
-    if (!supabase || !isSupabaseConfigured) return
+  const initAuth = useCallback(async (onProChange?: (isPro: boolean) => void): Promise<boolean> => {
+    if (!supabase || !isSupabaseConfigured) return false
 
     const { data: { session } } = await supabase.auth.getSession()
+    let resolvedIsPro = false
     if (session?.user) {
-      const isPro = await fetchIsPro(session.user.id)
-      setAuthState({ user: session.user, isPro })
-      onProChange?.(isPro)
+      resolvedIsPro = await fetchIsPro(session.user.id)
+      setAuthState({ user: session.user, isPro: resolvedIsPro })
+      onProChange?.(resolvedIsPro)
     }
 
     supabase.auth.onAuthStateChange(async (_event, newSession) => {
@@ -55,6 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthState({ user, isPro })
       onProChange?.(isPro)
     })
+
+    return resolvedIsPro
   }, [])
 
   const signIn = useCallback(async (email: string, password: string): Promise<string | null> => {

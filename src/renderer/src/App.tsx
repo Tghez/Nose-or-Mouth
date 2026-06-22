@@ -65,8 +65,8 @@ export default function App() {
 
     const settings = await loadSettings()
 
-    await initAuth((isPro) => {
-      // If user just upgraded to Pro, clear the limit gate
+    const isProStatus = await initAuth((isPro) => {
+      // If user upgrades to Pro mid-session, clear the limit gate
       if (isPro) {
         resetLimitGate()
         dispatch({ type: 'HIDE_MODAL', payload: 'limit' })
@@ -74,7 +74,7 @@ export default function App() {
       }
     })
 
-    await restoreSession()
+    await restoreSession(isProStatus)
 
     if (!settings.cameraPermission) {
       dispatch({ type: 'SHOW_MODAL', payload: 'onboarding' })
