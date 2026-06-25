@@ -16,6 +16,25 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
         }
       })
       activeStreamRef.current = stream
+
+      // Detect unexpected camera loss (e.g. macOS screen sleep revokes access)
+      const videoTrack = stream.getVideoTracks()[0]
+      if (videoTrack) {
+        videoTrack.addEventListener('ended', () => {
+          // activeStreamRef is nulled first in stopCamera — if it's still set here,
+          // the track ended unexpectedly (system sleep, camera unplugged, etc.)
+          if (activeStreamRef.current !== null) {
+            activeStreamRef.current = null
+            const videoEl = videoRef.current
+            if (videoEl) videoEl.srcObject = null
+            dispatch({ type: 'SET_CAMERA_READY', payload: false })
+            dispatch({ type: 'SET_CAMERA_ENABLED', payload: false })
+            dispatch({ type: 'SET_DETECTION_STATE', payload: { mouthOpen: false, faceDetected: false, lipsOccluded: false, paused: true } })
+            dispatch({ type: 'SET_STATUS', payload: 'Camera disconnected — tap 📷 to restart' })
+          }
+        }, { once: true })
+      }
+
       const videoEl = videoRef.current as HTMLVideoElement
       videoEl.srcObject = stream
 
@@ -52,8 +71,10 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
       clearTimeout(noFaceTimerRef.current)
       noFaceTimerRef.current = null
     }
-    activeStreamRef.current?.getTracks().forEach(t => t.stop())
+    // Null the ref BEFORE stopping tracks so the 'ended' listener treats this as intentional
+    const stream = activeStreamRef.current
     activeStreamRef.current = null
+    stream?.getTracks().forEach(t => t.stop())
     const videoEl = videoRef.current
     if (videoEl) videoEl.srcObject = null
     dispatch({ type: 'SET_CAMERA_READY', payload: false })

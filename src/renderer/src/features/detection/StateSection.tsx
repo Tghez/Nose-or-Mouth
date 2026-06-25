@@ -18,6 +18,9 @@ export function StateSection() {
       emoji = '👃'
       label = 'NOSE'
     }
+  } else if (!paused && faceDetected && lipsOccluded) {
+    emoji = '✋'
+    label = 'MOUTH COVERED'
   } else if (paused && !faceDetected) {
     label = 'PAUSED'
   }
