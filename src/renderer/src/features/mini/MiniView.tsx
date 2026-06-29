@@ -8,15 +8,14 @@ export function MiniView() {
   const isMouth = active && mouthOpen
   const isNose  = active && !mouthOpen
 
-  const total   = noseSeconds + mouthSeconds
-  const nosePct = total > 0 ? Math.round((noseSeconds / total) * 100) : 0
+  const total    = noseSeconds + mouthSeconds
+  const nosePct  = total > 0 ? Math.round((noseSeconds / total) * 100) : 0
   const mouthPct = total > 0 ? 100 - nosePct : 0
 
-  const stateClass = isMouth ? 'state-mouth' : isNose ? 'state-nose' : 'state-none'
-  const emoji      = isMouth ? '👄' : '👃'
-  const label      = isMouth ? 'Mouth' : isNose ? 'Nose' : '—'
-  const pct        = isMouth ? mouthPct : nosePct
-  const pctStr     = (isNose || isMouth) && total > 0 ? `${pct}%` : '—'
+  const stateClass   = isMouth ? 'state-mouth' : isNose ? 'state-nose' : 'state-none'
+  const emoji        = isMouth ? '👄' : '👃'
+  const nosePctStr   = total > 0 ? `${nosePct}%` : '—'
+  const mouthPctStr  = total > 0 ? `${mouthPct}%` : '—'
 
   function handleExpand() {
     window.electronAPI.exitMiniMode()
@@ -26,11 +25,16 @@ export function MiniView() {
     <div id="mini-view" className={stateClass}>
       <div id="mini-icon-wrap">
         <div id="mini-pulse" />
-        <span id="mini-emoji">{emoji}</span>
+        <span id="mini-label">{emoji}</span>
       </div>
-      <div id="mini-info">
-        <span id="mini-label">{label}</span>
-        <span id="mini-pct">{pctStr}</span>
+      <div id="mini-ratio">
+        <div id="mini-bar">
+          <div id="mini-bar-fill" style={{ width: `${nosePct}%` }} />
+        </div>
+        <div id="mini-bar-labels">
+          <span>Nose {nosePctStr}</span>
+          <span>Mouth {mouthPctStr}</span>
+        </div>
       </div>
       <button id="mini-expand" onClick={handleExpand} title="Expand to full view">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">

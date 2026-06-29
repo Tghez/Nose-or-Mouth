@@ -35,8 +35,8 @@ const store = new Store<StoreSchema>({
   }
 })
 
-const MINI_W = 280
-const MINI_H = 100
+const MINI_W = 220
+const MINI_H = 70
 const FULL_W = 420
 const FULL_H = 538  // 510px app + 28px custom title bar
 
