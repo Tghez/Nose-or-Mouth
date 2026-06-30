@@ -14,10 +14,12 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
+      - name: Write .env
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> .env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
+        shell: bash
       - run: npm run dist:win
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
@@ -31,11 +33,13 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
+      - name: Write .env
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> .env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
       - run: npm run dist:mac
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-artifact@v4
         with:
           name: mac-dmg
