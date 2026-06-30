@@ -6,7 +6,6 @@ import { todayString } from '../lib/utils'
 const FREE_DAILY_LIMIT_SECONDS = 600
 
 export function useCounters(
-  tickAlertWindow: (mouthOpen: boolean) => void,
   pauseAlertWindow: () => void
 ) {
   const { state, dispatch } = useAppContext()
@@ -39,11 +38,9 @@ export function useCounters(
   useEffect(() => { sessionStartRef.current = state.sessionStart }, [state.sessionStart])
 
   const saveDebounceRef = useRef(0)
-  const tickAlertRef    = useRef(tickAlertWindow)
   const pauseAlertRef   = useRef(pauseAlertWindow)
   const syncRef         = useRef(syncSession)
 
-  useEffect(() => { tickAlertRef.current  = tickAlertWindow  }, [tickAlertWindow])
   useEffect(() => { pauseAlertRef.current = pauseAlertWindow }, [pauseAlertWindow])
   useEffect(() => { syncRef.current       = syncSession      }, [syncSession])
 
@@ -65,7 +62,6 @@ export function useCounters(
   useEffect(() => {
     const id = setInterval(() => {
       if (pausedRef.current || !faceDetectedRef.current || lipsOccludedRef.current) {
-        pauseAlertRef.current()
         return
       }
 
@@ -76,8 +72,6 @@ export function useCounters(
         dispatch({ type: 'TICK_NOSE' })
         noseSecondsRef.current++
       }
-
-      tickAlertRef.current(mouthOpenRef.current)
 
       // Free-tier daily limit gate
       if (!limitReachedRef.current && !isProRef.current) {

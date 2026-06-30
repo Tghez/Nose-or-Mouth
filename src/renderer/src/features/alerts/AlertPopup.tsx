@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useAppContext } from '../../store/AppContext'
 import { Toggle } from '../../components/Toggle'
 import { formatMS } from '../../lib/utils'
@@ -9,12 +10,21 @@ interface AlertPopupProps {
 
 export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
   const { state, dispatch } = useAppContext()
-  const { showAlertPopup, settings, alertWindowTotalSeconds } = state
+  const { showAlertPopup, settings, alertWindowStartMs } = state
 
   const alertEnabled = settings.alertEnabled ?? true
-  const alertWindowSeconds = settings.alertWindowSeconds ?? 600
-  const alertProportionThreshold = settings.alertProportionThreshold ?? 0.8
-  const thresholdPct = Math.round(alertProportionThreshold * 100)
+  const alertWindowSeconds = settings.alertWindowSeconds ?? 120
+
+  // Independent 1-second counter — not tied to pulse tick rate
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    if (alertWindowStartMs === 0) { setElapsed(0); return }
+    setElapsed(Math.floor((Date.now() - alertWindowStartMs) / 1000))
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - alertWindowStartMs) / 1000))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [alertWindowStartMs])
 
   function close(): void {
     dispatch({ type: 'HIDE_MODAL', payload: 'alert' })
@@ -36,20 +46,14 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
     onReset()
   }
 
-  function handleThresholdChange(e: React.ChangeEvent<HTMLInputElement>): void {
-    const pct = parseInt(e.target.value, 10)
-    saveSetting({ alertProportionThreshold: pct / 100 })
-    onReset()
-  }
-
   function handleSnooze(): void {
     onReset()
     onShowToast('Alert window reset ✓')
   }
 
-  const counterText = (!alertEnabled || alertWindowTotalSeconds === 0)
+  const counterText = (!alertEnabled || alertWindowStartMs === 0)
     ? '—'
-    : formatMS(alertWindowTotalSeconds)
+    : formatMS(elapsed)
 
   return (
     <>
@@ -64,12 +68,12 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
           <button id="alert-popup-close" onClick={close}>✕</button>
         </div>
         <div id="alert-popup-desc">
-          Get notified when you breathe through your mouth too much within a set time window. The alert fires once per window if the mouth-breathing proportion exceeds your threshold.
+          Get notified when your breathing pattern crosses 90% in either direction within your chosen time window. The clock ring around the emoji tracks each state's progress.
         </div>
         <div className="alert-row" id="alert-counter-row">
           <div className="alert-row-label">
             <span>Window Progress</span>
-            <small>Time elapsed in current window</small>
+            <small>Seconds elapsed in current window</small>
           </div>
           <span id="alert-window-counter">{counterText}</span>
         </div>
@@ -94,35 +98,12 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
               value={alertWindowSeconds}
               onChange={handleWindowChange}
             >
+              <option value="60">1 min</option>
+              <option value="120">2 min</option>
+              <option value="180">3 min</option>
+              <option value="240">4 min</option>
               <option value="300">5 min</option>
-              <option value="600">10 min</option>
-              <option value="900">15 min</option>
-              <option value="1800">30 min</option>
             </select>
-          </div>
-          <div className="alert-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
-            <div className="alert-row-label">
-              <span>Mouth % Threshold</span>
-              <small>Alert if mouth breathing exceeds</small>
-            </div>
-            <div className="settings-slider-wrap" style={{ width: '100%' }}>
-              <div className="settings-slider-row">
-                <span style={{ fontSize: '11px', color: 'var(--text-dim)', width: '32px' }}>1%</span>
-                <input
-                  type="range"
-                  id="alert-threshold-select"
-                  min="1"
-                  max="100"
-                  step="1"
-                  value={thresholdPct}
-                  onChange={handleThresholdChange}
-                />
-                <span style={{ fontSize: '11px', color: 'var(--text-dim)', width: '40px', textAlign: 'right' }}>100%</span>
-              </div>
-              <div style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-dim)' }}>
-                Threshold: <span id="alert-threshold-display">{thresholdPct}%</span>
-              </div>
-            </div>
           </div>
           <div className="alert-row">
             <div className="alert-row-label">

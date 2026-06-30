@@ -30,7 +30,7 @@ const store = new Store<StoreSchema>({
     windowBounds: null,
     cameraPermission: false,
     alertEnabled: true,
-    alertWindowSeconds: 600,
+    alertWindowSeconds: 120,
     alertProportionThreshold: 0.6,
   }
 })
@@ -249,6 +249,52 @@ function registerIpcHandlers(): void {
       new Notification({ title, body }).show()
     }
     return { ok: true }
+  })
+
+  ipcMain.handle('show-alert-window', async (_event, { title, body }: { title: string; body: string }) => {
+    const { workArea } = screen.getPrimaryDisplay()
+    const winW = 320
+    const winH = 120
+    const x = workArea.x + Math.floor((workArea.width  - winW) / 2)
+    const y = workArea.y + Math.floor((workArea.height - winH) / 2)
+
+    const alertWin = new BrowserWindow({
+      x, y,
+      width: winW,
+      height: winH,
+      minWidth: winW, minHeight: winH,
+      maxWidth: winW, maxHeight: winH,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    })
+
+    alertWin.setIgnoreMouseEvents(false)
+
+    const query = { title, body }
+    if (process.env.ELECTRON_RENDERER_URL) {
+      const u = new URL(`${process.env.ELECTRON_RENDERER_URL}/alert.html`)
+      u.searchParams.set('title', title)
+      u.searchParams.set('body', body)
+      alertWin.loadURL(u.toString())
+    } else {
+      alertWin.loadFile(join(__dirname, '../renderer/alert.html'), { query })
+    }
+
+    alertWin.once('ready-to-show', () => alertWin.show())
+
+    // Safety: force-destroy after 3 s in case the page never calls window.close()
+    const safetyTimer = setTimeout(() => {
+      if (!alertWin.isDestroyed()) alertWin.destroy()
+    }, 3000)
+    alertWin.once('closed', () => clearTimeout(safetyTimer))
   })
 
   ipcMain.handle('toggle-always-on-top', async (_event, value: boolean) => {

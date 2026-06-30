@@ -37,11 +37,11 @@ export default function App() {
   const bootedRef    = useRef(false)
 
   const { startCamera, toggleCamera } = useCamera(videoRef)
-  const { tickAlertWindow, resetAlertWindow, pauseAlertWindow } = useAlerts()
+  const { resetAlertWindow, pauseAlertWindow } = useAlerts()
   const { calState, calibrationRefs, startCalibration, skipCalibration, resetCalibration } = useCalibration()
   const { loadSettings } = useSettings()
   const { restoreSession } = useSession()
-  const { persistSession, resetLimitGate } = useCounters(tickAlertWindow, pauseAlertWindow)
+  const { persistSession, resetLimitGate } = useCounters(pauseAlertWindow)
 
   useDetection(videoRef, faceCanvasRef, calibrationRefs)
   useIpc(persistSession)

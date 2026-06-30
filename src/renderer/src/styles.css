@@ -798,6 +798,29 @@ body.light #title-btn-close:hover {
   100% { box-shadow: 0 0 0 0   rgba(245,158,11,0); }
 }
 
+/* ── Clock ring ─────────────────────────────────────────────────────────── */
+#clock-ring-svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -56%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.clock-bar {
+  transition: fill 0.3s ease;
+}
+
+.clock-bar-filled {
+  animation: bar-fill 0.4s ease-out forwards;
+}
+
+@keyframes bar-fill {
+  from { opacity: 0.10; filter: brightness(2); }
+  to   { opacity: 1;    filter: brightness(1); }
+}
+
 /* ── Stats ───────────────────────────────────────────────────────────────── */
 #stats-section {
   background: var(--surface);

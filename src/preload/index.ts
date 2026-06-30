@@ -7,6 +7,7 @@ const api: ElectronAPI = {
   getSession:              (date)     => ipcRenderer.invoke('get-session', date),
   getAllSessions:           ()         => ipcRenderer.invoke('get-all-sessions'),
   showNotification:        (opts)     => ipcRenderer.invoke('show-notification', opts),
+  showAlertWindow:         (title, body) => ipcRenderer.invoke('show-alert-window', { title, body }),
   toggleAlwaysOnTop:       (value)    => ipcRenderer.invoke('toggle-always-on-top', value),
   updateTrayIcon:          (state)    => ipcRenderer.invoke('update-tray-icon', state),
   requestCameraPermission: ()         => ipcRenderer.invoke('request-camera-permission'),

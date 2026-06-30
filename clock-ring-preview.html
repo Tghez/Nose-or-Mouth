@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Clock Ring Preview — Vertical Bars</title>
+<style>
+:root{
+  --nose-color:#22c55e;--mouth-color:#f59e0b;
+  --nose-glow:rgba(34,197,94,.55);--mouth-glow:rgba(245,158,11,.55);
+  --bg:#0f0f10;--border:rgba(255,255,255,.07);
+  --text-dim:rgba(255,255,255,.4);--text:rgba(255,255,255,.88);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);min-height:100vh;display:flex;align-items:center;
+     justify-content:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+.scene{display:flex;flex-direction:column;align-items:center;gap:28px}
+
+.state-indicator{
+  position:relative;width:160px;height:160px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+
+#clock-ring{position:absolute;inset:0;pointer-events:none}
+
+.bar-pivot{
+  position:absolute;width:0;height:0;
+  top:80px;left:80px;
+}
+
+.bar{
+  position:absolute;
+  border-radius:3px;
+  background:var(--border);
+  opacity:.45;
+  transform-origin:50% 100%;
+  bottom:0;
+}
+.bar.filled{opacity:1}
+.bar.new-bar{animation:bar-deposit .5s cubic-bezier(.34,1.56,.64,1) forwards}
+
+@keyframes bar-deposit{
+  0%  {transform:scaleY(.06);filter:brightness(3) blur(1.5px);opacity:.65}
+  50% {transform:scaleY(1.25);filter:brightness(1.7)}
+  75% {transform:scaleY(.95);filter:brightness(1.1)}
+  100%{transform:scaleY(1);filter:brightness(1);opacity:1}
+}
+
+.pulse-ring{
+  position:absolute;width:64px;height:64px;border-radius:50%;
+  top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:0;
+}
+.state-nose  .pulse-ring{animation:pn 1.8s ease-out infinite}
+.state-mouth .pulse-ring{animation:pm 1.1s ease-out infinite}
+@keyframes pn{
+  0%  {box-shadow:0 0 0 0 var(--nose-glow)}
+  70% {box-shadow:0 0 0 24px rgba(34,197,94,0)}
+  100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+@keyframes pm{
+  0%  {box-shadow:0 0 0 0 var(--mouth-glow)}
+  70% {box-shadow:0 0 0 28px rgba(245,158,11,0)}
+  100%{box-shadow:0 0 0 0 rgba(245,158,11,0)}}
+
+.state-emoji{position:relative;z-index:2;font-size:38px;line-height:1;transition:filter .4s}
+.state-nose  .state-emoji{filter:drop-shadow(0 0 10px var(--nose-glow))}
+.state-mouth .state-emoji{filter:drop-shadow(0 0 10px var(--mouth-glow))}
+.state-label{
+  font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:var(--text-dim);transition:color .4s;position:relative;z-index:2;margin-top:2px;
+}
+.state-nose  .state-label{color:var(--nose-color)}
+.state-mouth .state-label{color:var(--mouth-color)}
+
+.controls{display:flex;gap:10px}
+button{
+  padding:8px 18px;border-radius:8px;border:1px solid rgba(255,255,255,.12);
+  font-size:13px;font-weight:600;cursor:pointer;
+  transition:opacity .15s,transform .1s;letter-spacing:.3px;
+}
+button:hover{opacity:.8;transform:scale(1.03)}
+.btn-nose{background:var(--nose-color);color:#000;border-color:var(--nose-color)}
+.btn-mouth{background:var(--mouth-color);color:#000;border-color:var(--mouth-color)}
+.btn-reset{background:rgba(255,255,255,.08);color:var(--text)}
+.win-btns{display:flex;gap:6px}
+.win-btn{
+  padding:5px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.1);
+  font-size:11px;font-weight:600;cursor:pointer;
+  background:rgba(255,255,255,.05);color:var(--text-dim);transition:all .15s;
+}
+.win-btn.active,.win-btn:hover{background:rgba(255,255,255,.15);color:var(--text)}
+.info{font-size:12px;color:var(--text-dim);text-align:center;line-height:1.7}
+.alert-msg{font-size:12px;font-weight:600;letter-spacing:.4px;min-height:18px;
+           text-align:center;transition:color .4s}
+.win-label{font-size:11px;color:var(--text-dim);letter-spacing:.5px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="scene">
+
+  <div class="state-indicator state-nose" id="indicator">
+    <div id="clock-ring"></div>
+    <div class="pulse-ring"></div>
+    <div class="state-emoji" id="emoji">👃</div>
+    <div class="state-label" id="slabel">NOSE</div>
+  </div>
+
+  <div class="alert-msg" id="amsg" style="color:var(--text-dim)">filling window…</div>
+
+  <div class="controls">
+    <button class="btn-nose"  onclick="setMode('nose')">👃 Nose</button>
+    <button class="btn-mouth" onclick="setMode('mouth')">👄 Mouth</button>
+    <button class="btn-reset" onclick="doReset()">↺ Reset</button>
+  </div>
+
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+    <div class="win-label">Window size</div>
+    <div class="win-btns" id="wbtns">
+      <button class="win-btn" onclick="setWin(1)">1 min</button>
+      <button class="win-btn active" onclick="setWin(2)">2 min</button>
+      <button class="win-btn" onclick="setWin(3)">3 min</button>
+      <button class="win-btn" onclick="setWin(4)">4 min</button>
+      <button class="win-btn" onclick="setWin(5)">5 min</button>
+    </div>
+  </div>
+
+  <div class="info" id="info">2 min · 24 bars · 5s/bar</div>
+</div>
+
+<script>
+const CX=80,CY=80
+const R_INNER=56
+const BAR_H=18
+const GAP_FRAC=0.48
+
+let winMins=2,numSegs=24,winSecs=120
+let mouthSecs=0,noseSecs=0,totalSecs=0
+let mode='nose'
+let prevMFilled=0,prevNFilled=0
+
+function barWidth(){
+  return Math.max(2,2*Math.PI*R_INNER/numSegs*GAP_FRAC)
+}
+function getAngle(i){ return i*360/numSegs-90 }
+
+function buildRing(){
+  const ring=document.getElementById('clock-ring')
+  ring.innerHTML=''
+  const bw=barWidth()
+  for(let i=0;i<numSegs;i++){
+    const pivot=document.createElement('div')
+    pivot.className='bar-pivot'
+    pivot.style.transform=`rotate(${getAngle(i)}deg) translateY(${-R_INNER}px)`
+
+    const bar=document.createElement('div')
+    bar.className='bar'
+    bar.style.width=bw+'px'
+    bar.style.height=BAR_H+'px'
+    bar.style.left=(-bw/2)+'px'
+    bar.style.borderRadius=Math.min(bw/2,3)+'px'
+    bar.dataset.i=i
+
+    pivot.appendChild(bar)
+    ring.appendChild(pivot)
+  }
+}
+
+function filled(secs){ return Math.min(numSegs,Math.floor((secs/winSecs)*numSegs)) }
+
+function renderBars(animate){
+  const mF=filled(mouthSecs),nF=filled(noseSecs)
+  const curF=mode==='mouth'?mF:nF
+  const prevF=mode==='mouth'?prevMFilled:prevNFilled
+  const color=mode==='mouth'?'var(--mouth-color)':'var(--nose-color)'
+
+  document.querySelectorAll('.bar').forEach((bar,i)=>{
+    const fill=i<curF
+    const isNew=fill&&i>=prevF&&animate
+    bar.style.background=fill?color:'var(--border)'
+    bar.style.opacity=fill?'1':'.45'
+    if(isNew){
+      bar.classList.remove('new-bar')
+      void bar.offsetWidth
+      bar.classList.add('new-bar')
+      bar.addEventListener('animationend',()=>bar.classList.remove('new-bar'),{once:true})
+    }
+  })
+
+  prevMFilled=mF; prevNFilled=nF
+}
+
+function setMode(m){
+  mode=m
+  const ind=document.getElementById('indicator')
+  ind.className=`state-indicator state-${m}`
+  document.getElementById('emoji').textContent=m==='nose'?'👃':'👄'
+  document.getElementById('slabel').textContent=m==='nose'?'NOSE':'MOUTH'
+  renderBars(false)
+}
+
+function setWin(m){
+  winMins=m; numSegs=m*12; winSecs=m*60
+  document.querySelectorAll('.win-btn').forEach((b,i)=>b.classList.toggle('active',i===m-1))
+  doReset(); buildRing()
+}
+
+function doReset(){
+  mouthSecs=0;noseSecs=0;totalSecs=0;prevMFilled=0;prevNFilled=0
+  renderBars(false)
+  const a=document.getElementById('amsg')
+  a.textContent='filling window…';a.style.color='var(--text-dim)'
+}
+
+function tick(){
+  totalSecs++
+  if(mode==='mouth'){ mouthSecs=Math.min(mouthSecs+1,winSecs) }
+  else               { noseSecs =Math.min(noseSecs+1, winSecs) }
+
+  const curF=mode==='mouth'?filled(mouthSecs):filled(noseSecs)
+  const prevF=mode==='mouth'?prevMFilled:prevNFilled
+  renderBars(curF>prevF)
+
+  const elapsed=Math.min(totalSecs,winSecs)
+  const mp=winSecs>0?Math.round((mouthSecs/winSecs)*100):0
+  const np=winSecs>0?Math.round((noseSecs/winSecs)*100):0
+  document.getElementById('info').innerHTML=
+    `<span style="color:var(--nose-color)">👃 ${noseSecs}s (${np}%)</span> &nbsp; `+
+    `<span style="color:var(--mouth-color)">👄 ${mouthSecs}s (${mp}%)</span><br>`+
+    `${winMins}min window · ${numSegs} bars · ${elapsed}/${winSecs}s elapsed`
+
+  const a=document.getElementById('amsg')
+  if(elapsed>=winSecs){
+    if(mp>=90){a.textContent='🚨 Alert: too much mouth breathing!';a.style.color='var(--mouth-color)'}
+    else if(np>=90){a.textContent='✨ Great work! Keep breathing through your nose!';a.style.color='var(--nose-color)'}
+    else{a.textContent='Window full — rolling…';a.style.color='var(--text-dim)'}
+  } else {
+    a.textContent=`Filling window… ${Math.round((elapsed/winSecs)*100)}%`
+    a.style.color='var(--text-dim)'
+  }
+}
+
+buildRing()
+setMode('nose')
+setInterval(tick,1000)
+
+// Auto-demo: 40s nose → 35s mouth → 45s nose → loop
+const plan=[{m:'nose',s:40},{m:'mouth',s:35},{m:'nose',s:45}]
+let pi=0,pr=plan[0].s
+setInterval(()=>{
+  pr--
+  if(pr<=0){ pi=(pi+1)%plan.length; pr=plan[pi].s; setMode(plan[pi].m) }
+},1000)
+</script>
+</body>
+</html>

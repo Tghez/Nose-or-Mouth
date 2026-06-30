@@ -31,7 +31,11 @@ export interface AppContextState {
   cameraEnabled: boolean
   summaryData: SummaryData | null
   alertFired: boolean
-  alertWindowTotalSeconds: number
+  alertWindowStartMs: number
+  mouthClockFilled: number
+  noseClockFilled: number
+  mouthClockSegments: number
+  noseClockSegments: number
 }
 
 type ModalName = 'settings' | 'summary' | 'calibration' | 'tutorial' | 'onboarding' | 'auth' | 'limit' | 'alert'
@@ -50,7 +54,8 @@ export type AppAction =
   | { type: 'SET_MEDIAPIPE_READY'; payload: boolean }
   | { type: 'SET_CAMERA_ENABLED'; payload: boolean }
   | { type: 'SET_FACE_MESH_VISIBLE'; payload: boolean }
-  | { type: 'SET_ALERT_STATE'; payload: { alertFired: boolean; alertWindowTotalSeconds: number } }
+  | { type: 'SET_ALERT_STATE'; payload: { alertFired: boolean; alertWindowStartMs: number } }
+  | { type: 'SET_CLOCK_STATE'; payload: { mouthClockFilled: number; noseClockFilled: number; mouthClockSegments: number; noseClockSegments: number; alertFired: boolean; alertWindowStartMs: number } }
   | { type: 'SET_TOAST'; payload: string | null }
   | { type: 'SET_SUMMARY_DATA'; payload: SummaryData }
   | { type: 'RESET_DAY' }
@@ -85,7 +90,11 @@ const initialState: AppContextState = {
   cameraEnabled: true,
   summaryData: null,
   alertFired: false,
-  alertWindowTotalSeconds: 0,
+  alertWindowStartMs: 0,
+  mouthClockFilled: 0,
+  noseClockFilled: 0,
+  mouthClockSegments: 0,
+  noseClockSegments: 0,
 }
 
 function modalKey(name: ModalName): keyof AppContextState {
@@ -131,6 +140,8 @@ function appReducer(state: AppContextState, action: AppAction): AppContextState 
     case 'SET_FACE_MESH_VISIBLE':
       return { ...state, faceMeshVisible: action.payload }
     case 'SET_ALERT_STATE':
+      return { ...state, ...action.payload }
+    case 'SET_CLOCK_STATE':
       return { ...state, ...action.payload }
     case 'SET_TOAST':
       return { ...state, toastMessage: action.payload }

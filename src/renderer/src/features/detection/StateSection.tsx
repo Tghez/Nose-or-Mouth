@@ -1,4 +1,5 @@
 import { useAppContext } from '../../store/AppContext'
+import { ClockRing } from './ClockRing'
 
 export function StateSection() {
   const { state } = useAppContext()
@@ -28,6 +29,7 @@ export function StateSection() {
   return (
     <div id="state-section">
       <div id="state-indicator" className={stateClass}>
+        <ClockRing />
         <div id="pulse-ring"></div>
         <div id="state-emoji">{emoji}</div>
         <div id="state-label">{label}</div>
