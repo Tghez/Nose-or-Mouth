@@ -14,10 +14,12 @@ const api: ElectronAPI = {
   getSettings:             ()         => ipcRenderer.invoke('get-settings'),
   saveSettings:            (settings) => ipcRenderer.invoke('save-settings', settings),
   getSummary:              (date)     => ipcRenderer.invoke('get-summary', date),
+  openExternal:            (url)      => ipcRenderer.invoke('open-external', url),
 
   // ── Main → Renderer (push events) ────────────────────────────────────────
   onDailySummaryTrigger: (cb) => ipcRenderer.on('daily-summary-trigger', (_e, data) => cb(data)),
   onSettingsChanged:     (cb) => ipcRenderer.on('settings-changed', (_e, data) => cb(data)),
+  onAuthCallback:        (cb) => ipcRenderer.on('auth-callback', (_e, url) => cb(url)),
   exitMiniMode:          ()       => ipcRenderer.invoke('exit-mini-mode'),
   enterMiniMode:         ()       => ipcRenderer.invoke('enter-mini-mode'),
   quitApp:               ()       => ipcRenderer.invoke('quit-app'),

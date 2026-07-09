@@ -33,6 +33,14 @@
     "appId": "com.tghez.mouth-breather",
     "productName": "Mouth Breather",
     "afterPack": "scripts/after-pack.js",
+    "protocols": [
+      {
+        "name": "Mouth Breather",
+        "schemes": [
+          "mouthbreather"
+        ]
+      }
+    ],
     "files": [
       "out/**/*"
     ],

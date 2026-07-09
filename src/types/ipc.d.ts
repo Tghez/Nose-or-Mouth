@@ -12,8 +12,10 @@ export interface ElectronAPI {
   getSettings: () => Promise<StoreSchema>
   saveSettings: (settings: Partial<StoreSchema>) => Promise<{ ok: boolean }>
   getSummary: (date?: string) => Promise<SummaryData>
+  openExternal: (url: string) => Promise<void>
   onDailySummaryTrigger: (cb: (data: SummaryData) => void) => void
   onSettingsChanged: (cb: (settings: StoreSchema) => void) => void
+  onAuthCallback: (cb: (url: string) => void) => void
   exitMiniMode: () => Promise<void>
   enterMiniMode: () => Promise<void>
   quitApp: () => Promise<void>

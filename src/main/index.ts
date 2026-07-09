@@ -1,6 +1,6 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, session, screen } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, session, screen, shell } from 'electron'
 import type { NativeImage } from 'electron'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { execFileSync } from 'child_process'
 import Store from 'electron-store'
 import * as storage from './utils/storage'
@@ -17,6 +17,42 @@ if (process.platform === 'darwin' && app.isPackaged) {
 
 // app doesn't type isQuitting, but we set it as a quit guard flag
 const appState = app as typeof app & { isQuitting: boolean }
+
+// ── Google OAuth deep link (mouthbreather://auth-callback) ───────────────────
+
+const AUTH_PROTOCOL = 'mouthbreather'
+
+if (app.isPackaged) {
+  app.setAsDefaultProtocolClient(AUTH_PROTOCOL)
+} else if (process.argv[1]) {
+  app.setAsDefaultProtocolClient(AUTH_PROTOCOL, process.execPath, [resolve(process.argv[1])])
+}
+
+const singleInstanceLock = app.requestSingleInstanceLock()
+if (!singleInstanceLock) {
+  app.quit()
+}
+
+let pendingAuthCallbackUrl: string | null = null
+
+function findAuthCallbackArg(argv: string[]): string | undefined {
+  return argv.find((arg) => arg.startsWith(`${AUTH_PROTOCOL}://`))
+}
+
+function handleAuthCallbackUrl(url: string): void {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.send('auth-callback', url)
+  } else {
+    pendingAuthCallbackUrl = url
+  }
+  focusMainWindow()
+}
+
+function focusMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (!mainWindow.isVisible()) mainWindow.show()
+  mainWindow.focus()
+}
 
 const store = new Store<StoreSchema>({
   defaults: {
@@ -153,6 +189,14 @@ function createWindow(): void {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+  })
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (pendingAuthCallbackUrl) {
+      const url = pendingAuthCallbackUrl
+      pendingAuthCallbackUrl = null
+      mainWindow?.webContents.send('auth-callback', url)
+    }
   })
 }
 
@@ -369,6 +413,10 @@ function registerIpcHandlers(): void {
     }
     return payload
   })
+
+  ipcMain.handle('open-external', async (_event, url: string) => {
+    if (url.startsWith('https://')) await shell.openExternal(url)
+  })
 }
 
 function applyStartAtLogin(enabled: boolean): void {
@@ -380,7 +428,23 @@ function applyStartAtLogin(enabled: boolean): void {
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
+app.on('second-instance', (_event, argv) => {
+  const url = findAuthCallbackArg(argv)
+  if (url) {
+    handleAuthCallbackUrl(url)
+  } else {
+    focusMainWindow()
+  }
+})
+
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  handleAuthCallbackUrl(url)
+})
+
 app.whenReady().then(() => {
+  if (!singleInstanceLock) return
+
   setupPermissions()
   createWindow()
   createTray()
@@ -390,6 +454,9 @@ app.whenReady().then(() => {
 
   mainWindow?.show()
   mainWindow?.focus()
+
+  const coldStartUrl = findAuthCallbackArg(process.argv)
+  if (coldStartUrl) handleAuthCallbackUrl(coldStartUrl)
 })
 
 app.on('before-quit', () => {

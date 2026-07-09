@@ -17,12 +17,13 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   initAuth: (onProChange?: (isPro: boolean) => void) => Promise<boolean>
-  signIn: (email: string, password: string) => Promise<string | null>
-  signUp: (email: string, password: string) => Promise<string | null>
+  signInWithGoogle: () => Promise<string | null>
   signOut: () => Promise<void>
   syncSession: (session: Session) => Promise<void>
   fetchWeekSessions: () => Promise<WeekSession[]>
 }
+
+const AUTH_CALLBACK_REDIRECT = 'https://tghez.github.io/mouth-breather-auth/'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
@@ -57,19 +58,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       onProChange?.(isPro)
     })
 
+    window.electronAPI.onAuthCallback(async (url) => {
+      const code = new URL(url).searchParams.get('code')
+      if (!code) return
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      if (error) console.error('Google sign-in failed:', error.message)
+    })
+
     return resolvedIsPro
   }, [])
 
-  const signIn = useCallback(async (email: string, password: string): Promise<string | null> => {
+  const signInWithGoogle = useCallback(async (): Promise<string | null> => {
     if (!supabase) return 'Supabase not configured'
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return error?.message ?? null
-  }, [])
-
-  const signUp = useCallback(async (email: string, password: string): Promise<string | null> => {
-    if (!supabase) return 'Supabase not configured'
-    const { error } = await supabase.auth.signUp({ email, password })
-    return error?.message ?? null
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: AUTH_CALLBACK_REDIRECT, skipBrowserRedirect: true }
+    })
+    if (error) return error.message
+    if (data?.url) await window.electronAPI.openExternal(data.url)
+    return null
   }, [])
 
   const signOut = useCallback(async () => {
@@ -105,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [authState.user])
 
   return (
-    <AuthContext.Provider value={{ ...authState, initAuth, signIn, signUp, signOut, syncSession, fetchWeekSessions }}>
+    <AuthContext.Provider value={{ ...authState, initAuth, signInWithGoogle, signOut, syncSession, fetchWeekSessions }}>
       {children}
     </AuthContext.Provider>
   )
