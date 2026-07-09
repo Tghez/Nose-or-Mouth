@@ -1,6 +1,7 @@
 import { useRef, useEffect, type RefObject } from 'react'
 import { useAppContext } from './store/AppContext'
 import { useAuthContext } from './store/AuthContext'
+import type { StoreSchema } from '../../types/session'
 import { useCamera } from './hooks/useCamera'
 import { useDetection } from './hooks/useDetection'
 import { useCounters } from './hooks/useCounters'
@@ -35,6 +36,7 @@ export default function App() {
   const faceCanvasRef = useRef<HTMLCanvasElement>(null) as RefObject<HTMLCanvasElement | null>
   const noFaceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bootedRef    = useRef(false)
+  const awaitingAuthPromptRef = useRef(false)
 
   const { startCamera, toggleCamera } = useCamera(videoRef)
   const { resetAlertWindow, pauseAlertWindow } = useAlerts()
@@ -59,23 +61,7 @@ export default function App() {
     window.electronAPI.setModalOpen(anyOpen)
   }, [showSettings, showSummary, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay])
 
-  // Single boot effect
-  const bootRef = useRef(async () => {
-    dispatch({ type: 'SET_STATUS', payload: 'Initializing…' })
-
-    const settings = await loadSettings()
-
-    const isProStatus = await initAuth((isPro) => {
-      // If user upgrades to Pro mid-session, clear the limit gate
-      if (isPro) {
-        resetLimitGate()
-        dispatch({ type: 'HIDE_MODAL', payload: 'limit' })
-        dispatch({ type: 'SET_DETECTION_STATE', payload: { mouthOpen: false, faceDetected: false, lipsOccluded: false, paused: false } })
-      }
-    })
-
-    await restoreSession(isProStatus)
-
+  async function continueBootAfterAuth(settings: StoreSchema): Promise<void> {
     if (!settings.cameraPermission) {
       dispatch({ type: 'SHOW_MODAL', payload: 'onboarding' })
     } else {
@@ -99,7 +85,48 @@ export default function App() {
         dispatch({ type: 'SET_STATUS', payload: 'Detector init failed' })
       }
     }
+  }
+
+  // Single boot effect
+  const bootRef = useRef(async () => {
+    dispatch({ type: 'SET_STATUS', payload: 'Initializing…' })
+
+    const settings = await loadSettings()
+
+    const { isPro: isProStatus, signedIn } = await initAuth((isPro) => {
+      // If user upgrades to Pro mid-session, clear the limit gate
+      if (isPro) {
+        resetLimitGate()
+        dispatch({ type: 'HIDE_MODAL', payload: 'limit' })
+        dispatch({ type: 'SET_DETECTION_STATE', payload: { mouthOpen: false, faceDetected: false, lipsOccluded: false, paused: false } })
+      }
+    })
+
+    await restoreSession(isProStatus)
+
+    // On first-ever launch (fresh install), prompt sign-in before anything else.
+    // The rest of boot (camera permission, tutorial, calibration) continues once
+    // this is dismissed — see the showAuthModal effect below.
+    if (!signedIn && !settings.authPromptShown) {
+      await window.electronAPI.saveSettings({ authPromptShown: true })
+      dispatch({ type: 'SET_SETTINGS', payload: { authPromptShown: true } })
+      awaitingAuthPromptRef.current = true
+      dispatch({ type: 'SHOW_MODAL', payload: 'auth' })
+      return
+    }
+
+    await continueBootAfterAuth(settings)
   })
+
+  // Resume boot once the first-launch auth prompt is dismissed (sign-in or Close)
+  const prevShowAuthModalRef = useRef(state.showAuthModal)
+  useEffect(() => {
+    if (awaitingAuthPromptRef.current && prevShowAuthModalRef.current && !state.showAuthModal) {
+      awaitingAuthPromptRef.current = false
+      continueBootAfterAuth(state.settings as StoreSchema)
+    }
+    prevShowAuthModalRef.current = state.showAuthModal
+  }, [state.showAuthModal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Run boot once (guard against Strict Mode double-invoke)
   const bootEffect = useRef(false)

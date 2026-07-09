@@ -15,8 +15,13 @@ interface AuthState {
   isPro: boolean
 }
 
+export interface InitAuthResult {
+  isPro: boolean
+  signedIn: boolean
+}
+
 interface AuthContextValue extends AuthState {
-  initAuth: (onProChange?: (isPro: boolean) => void) => Promise<boolean>
+  initAuth: (onProChange?: (isPro: boolean) => void) => Promise<InitAuthResult>
   signInWithGoogle: () => Promise<string | null>
   signOut: () => Promise<void>
   syncSession: (session: Session) => Promise<void>
@@ -40,8 +45,8 @@ async function fetchIsPro(userId: string): Promise<boolean> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>({ user: null, isPro: false })
 
-  const initAuth = useCallback(async (onProChange?: (isPro: boolean) => void): Promise<boolean> => {
-    if (!supabase || !isSupabaseConfigured) return false
+  const initAuth = useCallback(async (onProChange?: (isPro: boolean) => void): Promise<InitAuthResult> => {
+    if (!supabase || !isSupabaseConfigured) return { isPro: false, signedIn: false }
 
     const { data: { session } } = await supabase.auth.getSession()
     let resolvedIsPro = false
@@ -65,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) console.error('Google sign-in failed:', error.message)
     })
 
-    return resolvedIsPro
+    return { isPro: resolvedIsPro, signedIn: !!session?.user }
   }, [])
 
   const signInWithGoogle = useCallback(async (): Promise<string | null> => {

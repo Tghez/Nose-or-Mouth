@@ -1,6 +1,6 @@
 {
   "name": "mouth-breather",
-  "version": "1.5.6",
+  "version": "1.5.7",
   "description": "Real-time mouth/nose breathing monitor",
   "main": "out/main/index.js",
   "scripts": {
