@@ -1,11 +1,15 @@
-export function TitleBar() {
+interface TitleBarProps {
+  onMinimize: () => void
+}
+
+export function TitleBar({ onMinimize }: TitleBarProps) {
   return (
     <div id="title-bar">
       <span id="title-bar-name">Mouth Breather</span>
       <div id="title-bar-controls">
         <button
           id="title-btn-min"
-          onClick={() => window.electronAPI.enterMiniMode()}
+          onClick={onMinimize}
           title="Compact view"
         >
           <svg width="12" height="2" viewBox="0 0 12 2" fill="none">

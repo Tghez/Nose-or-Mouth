@@ -161,6 +161,16 @@ export default function App() {
     dispatch({ type: 'SHOW_MODAL', payload: 'summary' })
   }
 
+  function handleMinimize(): void {
+    // Close any open modal/overlay first so mini mode always starts from the clean main view
+    dispatch({ type: 'HIDE_MODAL', payload: 'settings' })
+    dispatch({ type: 'HIDE_MODAL', payload: 'summary' })
+    dispatch({ type: 'HIDE_MODAL', payload: 'auth' })
+    dispatch({ type: 'HIDE_MODAL', payload: 'limit' })
+    dispatch({ type: 'HIDE_MODAL', payload: 'alert' })
+    window.electronAPI.enterMiniMode()
+  }
+
   function handleToggleCamera(): void {
     toggleCamera(state.cameraEnabled, noFaceTimerRef)
   }
@@ -187,7 +197,7 @@ export default function App() {
       <AlertPopup onReset={resetAlertWindow} onShowToast={handleShowToast} />
       <SettingsPanel onRecalibrate={handleRecalibrate} onSignInClick={handleSettingsSignIn} />
       <Toast />
-      {!state.isMiniMode && <TitleBar />}
+      {!state.isMiniMode && <TitleBar onMinimize={handleMinimize} />}
       <div id="app" className={state.isMiniMode ? 'app-mini-hidden' : undefined}>
         <Toolbar onSummaryClick={handleSummaryClick} />
         <CameraSection
