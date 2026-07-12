@@ -10,21 +10,25 @@ interface AlertPopupProps {
 
 export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
   const { state, dispatch } = useAppContext()
-  const { showAlertPopup, settings, alertWindowStartMs } = state
+  const { showAlertPopup, settings, alertWindowStartMs, paused, faceDetected, lipsOccluded } = state
 
   const alertEnabled = settings.alertEnabled ?? true
   const alertWindowSeconds = settings.alertWindowSeconds ?? 120
+  const isActive = !paused && faceDetected && !lipsOccluded
 
-  // Independent 1-second counter — not tied to pulse tick rate
+  // Independent 1-second counter — not tied to pulse tick rate. Frozen while
+  // detection is inactive (no face / paused / lips covered) so it doesn't
+  // visibly keep counting up when nothing is actually being measured.
   const [elapsed, setElapsed] = useState(0)
   useEffect(() => {
     if (alertWindowStartMs === 0) { setElapsed(0); return }
+    if (!isActive) return
     setElapsed(Math.floor((Date.now() - alertWindowStartMs) / 1000))
     const id = setInterval(() => {
       setElapsed(Math.floor((Date.now() - alertWindowStartMs) / 1000))
     }, 1000)
     return () => clearInterval(id)
-  }, [alertWindowStartMs])
+  }, [alertWindowStartMs, isActive])
 
   function close(): void {
     dispatch({ type: 'HIDE_MODAL', payload: 'alert' })

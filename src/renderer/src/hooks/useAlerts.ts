@@ -52,25 +52,63 @@ export function useAlerts() {
   useEffect(() => { enabledRef.current    = state.settings.alertEnabled ?? true      }, [state.settings.alertEnabled])
   useEffect(() => { windowSecsRef.current = state.settings.alertWindowSeconds ?? 120 }, [state.settings.alertWindowSeconds])
 
+  // Tracks how long detection has been inactive (no face / paused / lips
+  // covered), so a resume can shift the window forward by that gap instead
+  // of silently letting it count as elapsed window time with zero samples.
+  const inactiveSinceRef = useRef(0)  // 0 = currently active
+
   // Start the window the instant detection actually goes active, rather than
   // waiting on the first #pulse-ring animationiteration (up to 1.1-1.8s later).
-  // Guarded by windowStartRef === 0 so this only fires the very first time.
   const isActive = !state.paused && state.faceDetected && !state.lipsOccluded
   useEffect(() => {
-    if (!isActive || windowStartRef.current !== 0) return
-    windowStartRef.current = Date.now()
+    if (!isActive) {
+      // Only mark the pause point once — a still-inactive re-render (e.g.
+      // another field flips while faceDetected stays false) shouldn't push
+      // the timestamp forward.
+      if (windowStartRef.current !== 0 && inactiveSinceRef.current === 0) {
+        inactiveSinceRef.current = Date.now()
+      }
+      return
+    }
+
     const windowSeconds = windowSecsRef.current
-    dispatch({
-      type: 'SET_CLOCK_STATE',
-      payload: {
-        mouthClockFilled:   0,
-        noseClockFilled:    0,
-        mouthClockSegments: Math.round(windowSeconds / MOUTH_PULSE_S),
-        noseClockSegments:  Math.round(windowSeconds / NOSE_PULSE_S),
-        alertFired:         false,
-        alertWindowStartMs: windowStartRef.current,
-      },
-    })
+    const mouthSegs      = Math.round(windowSeconds / MOUTH_PULSE_S)
+    const noseSegs       = Math.round(windowSeconds / NOSE_PULSE_S)
+
+    if (windowStartRef.current === 0) {
+      // First-ever activation — start a clean window.
+      windowStartRef.current = Date.now()
+      dispatch({
+        type: 'SET_CLOCK_STATE',
+        payload: {
+          mouthClockFilled:   0,
+          noseClockFilled:    0,
+          mouthClockSegments: mouthSegs,
+          noseClockSegments:  noseSegs,
+          alertFired:         false,
+          alertWindowStartMs: windowStartRef.current,
+        },
+      })
+    } else if (inactiveSinceRef.current !== 0) {
+      // Resuming after a pause — shift the window (and any pending switch
+      // timer) forward by the inactive gap so it's excluded from both.
+      const gap = Date.now() - inactiveSinceRef.current
+      windowStartRef.current += gap
+      if (pendingSwitchRef.current) switchTimeRef.current += gap
+      inactiveSinceRef.current = 0
+
+      dispatch({
+        type: 'SET_CLOCK_STATE',
+        payload: {
+          mouthClockFilled:   Math.min(mouthCountRef.current, mouthSegs),
+          noseClockFilled:    Math.min(noseCountRef.current,  noseSegs),
+          mouthClockSegments: mouthSegs,
+          noseClockSegments:  noseSegs,
+          alertFired:         alertFiredRef.current,
+          alertWindowStartMs: windowStartRef.current,
+        },
+      })
+    }
   }, [isActive]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // processTickRef is refreshed every render so dispatch/state are never stale
@@ -179,6 +217,7 @@ export function useAlerts() {
     preSwitchStateRef.current   = false
     switchMouthCountRef.current = 0
     switchNoseCountRef.current  = 0
+    inactiveSinceRef.current    = 0
     const windowSeconds = windowSecsRef.current
     dispatch({
       type: 'SET_CLOCK_STATE',
