@@ -17,6 +17,7 @@ import { StateSection } from './features/detection/StateSection'
 import { StatsSection } from './features/counters/StatsSection'
 import { CalibrationModal } from './features/calibration/CalibrationModal'
 import { SummaryModal } from './features/summary/SummaryModal'
+import { SummaryLockOverlay } from './features/summary/SummaryLockOverlay'
 import { SettingsPanel } from './features/settings/SettingsPanel'
 import { AuthModal } from './features/auth/AuthModal'
 import { TutorialOverlay } from './features/tutorial/TutorialOverlay'
@@ -48,7 +49,7 @@ export default function App() {
   const { persistSession, resetLimitGate } = useCounters(pauseAlertWindow)
 
   useDetection(videoRef, faceCanvasRef, calibrationRefs)
-  useIpc(persistSession)
+  useIpc(persistSession, isPro)
 
   useEffect(() => {
     window.electronAPI.onMiniModeChanged((mini) => {
@@ -57,11 +58,11 @@ export default function App() {
     return () => window.electronAPI.removeAllListeners('mini-mode-changed')
   }, [])
 
-  const { showSettings, showSummary, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay } = state
+  const { showSettings, showSummary, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay, showSummaryLockOverlay } = state
   useEffect(() => {
-    const anyOpen = showSettings || showSummary || showCalibration || showTutorial || showOnboarding || showAuthModal || showLimitOverlay
+    const anyOpen = showSettings || showSummary || showCalibration || showTutorial || showOnboarding || showAuthModal || showLimitOverlay || showSummaryLockOverlay
     window.electronAPI.setModalOpen(anyOpen)
-  }, [showSettings, showSummary, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay])
+  }, [showSettings, showSummary, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay, showSummaryLockOverlay])
 
   async function continueBootAfterAuth(settings: StoreSchema): Promise<void> {
     if (!settings.cameraPermission) {
@@ -183,6 +184,10 @@ export default function App() {
   }
 
   async function handleSummaryClick(): Promise<void> {
+    if (!isPro) {
+      dispatch({ type: 'SHOW_MODAL', payload: 'summaryLocked' })
+      return
+    }
     await persistSession()
     const data = await window.electronAPI.getSummary()
     dispatch({ type: 'SET_SUMMARY_DATA', payload: data })
@@ -195,6 +200,7 @@ export default function App() {
     dispatch({ type: 'HIDE_MODAL', payload: 'summary' })
     dispatch({ type: 'HIDE_MODAL', payload: 'auth' })
     dispatch({ type: 'HIDE_MODAL', payload: 'limit' })
+    dispatch({ type: 'HIDE_MODAL', payload: 'summaryLocked' })
     dispatch({ type: 'HIDE_MODAL', payload: 'alert' })
     window.electronAPI.enterMiniMode()
   }
@@ -245,6 +251,7 @@ export default function App() {
         onSkip={skipCalibration}
       />
       <SummaryModal />
+      <SummaryLockOverlay />
       <LimitOverlay />
       <AlertPopup onReset={resetAlertWindow} onShowToast={handleShowToast} />
       <SettingsPanel onRecalibrate={handleRecalibrate} />

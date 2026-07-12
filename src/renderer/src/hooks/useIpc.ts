@@ -2,10 +2,12 @@ import { useEffect, useRef } from 'react'
 import { useAppContext } from '../store/AppContext'
 import { buildSummaryBody } from '../lib/utils'
 
-export function useIpc(persistSession: () => Promise<void>) {
+export function useIpc(persistSession: () => Promise<void>, isPro: boolean) {
   const { dispatch } = useAppContext()
   const persistRef = useRef(persistSession)
   useEffect(() => { persistRef.current = persistSession }, [persistSession])
+  const isProRef = useRef(isPro)
+  useEffect(() => { isProRef.current = isPro }, [isPro])
 
   useEffect(() => {
     window.electronAPI.onDailySummaryTrigger(async (data) => {
@@ -16,8 +18,12 @@ export function useIpc(persistSession: () => Promise<void>) {
         body: buildSummaryBody(data)
       })
 
-      dispatch({ type: 'SET_SUMMARY_DATA', payload: data })
-      dispatch({ type: 'SHOW_MODAL', payload: 'summary' })
+      if (isProRef.current) {
+        dispatch({ type: 'SET_SUMMARY_DATA', payload: data })
+        dispatch({ type: 'SHOW_MODAL', payload: 'summary' })
+      } else {
+        dispatch({ type: 'SHOW_MODAL', payload: 'summaryLocked' })
+      }
       dispatch({ type: 'RESET_DAY' })
     })
 

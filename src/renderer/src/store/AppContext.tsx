@@ -24,6 +24,7 @@ export interface AppContextState {
   showOnboarding: boolean
   showAuthModal: boolean
   showLimitOverlay: boolean
+  showSummaryLockOverlay: boolean
   showAlertPopup: boolean
   statusText: string
   toastMessage: string | null
@@ -38,7 +39,7 @@ export interface AppContextState {
   noseClockSegments: number
 }
 
-type ModalName = 'settings' | 'summary' | 'calibration' | 'tutorial' | 'onboarding' | 'auth' | 'limit' | 'alert'
+type ModalName = 'settings' | 'summary' | 'calibration' | 'tutorial' | 'onboarding' | 'auth' | 'limit' | 'summaryLocked' | 'alert'
 
 export type AppAction =
   | { type: 'SET_DETECTION_STATE'; payload: { mouthOpen: boolean; faceDetected: boolean; lipsOccluded: boolean; paused: boolean } }
@@ -83,6 +84,7 @@ const initialState: AppContextState = {
   showOnboarding: false,
   showAuthModal: false,
   showLimitOverlay: false,
+  showSummaryLockOverlay: false,
   showAlertPopup: false,
   statusText: 'Initializing…',
   toastMessage: null,
@@ -106,6 +108,7 @@ function modalKey(name: ModalName): keyof AppContextState {
     onboarding: 'showOnboarding',
     auth: 'showAuthModal',
     limit: 'showLimitOverlay',
+    summaryLocked: 'showSummaryLockOverlay',
     alert: 'showAlertPopup',
   }
   return map[name]

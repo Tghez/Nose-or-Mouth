@@ -1510,6 +1510,29 @@ input[type=time]:focus,
 
 #limit-overlay strong { color: var(--text); }
 
+/* ── Summary lock overlay ────────────────────────────────────────────────── */
+#summary-lock-overlay {
+  text-align: center;
+  gap: 12px;
+}
+
+#summary-lock-overlay .ob-icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+#summary-lock-overlay h2 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+#summary-lock-overlay p {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  max-width: 240px;
+}
+
 /* ── Mini / compact view ─────────────────────────────────────────────────── */
 #app.app-mini-hidden { opacity: 0; pointer-events: none; }
 
