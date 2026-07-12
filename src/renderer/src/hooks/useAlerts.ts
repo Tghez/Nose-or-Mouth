@@ -15,14 +15,63 @@ export function useAlerts() {
 
   const alertFiredRef = useRef(false)
 
+  // Tracks a nose/mouth state switch that hasn't been confirmed sustained yet.
+  // Since mouthOpen is boolean, a flip while a switch is already pending can
+  // only be a return to the state we started from (preSwitchStateRef) — that
+  // cancels the pending switch outright rather than arming a new one, so
+  // briefly dipping into the other state and coming straight back never
+  // resets anything, no matter how long you then stay back at baseline.
+  const SWITCH_CONFIRM_MS   = 5000
+  const pendingSwitchRef    = useRef(false)
+  const preSwitchStateRef   = useRef(false)
+  const switchTimeRef       = useRef(0)
+  const switchMouthCountRef = useRef(0)
+  const switchNoseCountRef  = useRef(0)
+
   // Stable refs so the animationiteration handler always reads latest values
   const mouthOpenRef  = useRef(state.mouthOpen)
   const enabledRef    = useRef(state.settings.alertEnabled ?? true)
   const windowSecsRef = useRef(state.settings.alertWindowSeconds ?? 120)
 
-  useEffect(() => { mouthOpenRef.current  = state.mouthOpen                         }, [state.mouthOpen])
+  useEffect(() => {
+    if (state.mouthOpen !== mouthOpenRef.current) {
+      if (pendingSwitchRef.current) {
+        // Back to preSwitchStateRef already (only two possible states) —
+        // this was a brief dip, not a sustained switch. Cancel it.
+        pendingSwitchRef.current = false
+      } else {
+        pendingSwitchRef.current    = true
+        preSwitchStateRef.current   = mouthOpenRef.current
+        switchTimeRef.current       = Date.now()
+        switchMouthCountRef.current = 0
+        switchNoseCountRef.current  = 0
+      }
+    }
+    mouthOpenRef.current = state.mouthOpen
+  }, [state.mouthOpen])
   useEffect(() => { enabledRef.current    = state.settings.alertEnabled ?? true      }, [state.settings.alertEnabled])
   useEffect(() => { windowSecsRef.current = state.settings.alertWindowSeconds ?? 120 }, [state.settings.alertWindowSeconds])
+
+  // Start the window the instant detection actually goes active, rather than
+  // waiting on the first #pulse-ring animationiteration (up to 1.1-1.8s later).
+  // Guarded by windowStartRef === 0 so this only fires the very first time.
+  const isActive = !state.paused && state.faceDetected && !state.lipsOccluded
+  useEffect(() => {
+    if (!isActive || windowStartRef.current !== 0) return
+    windowStartRef.current = Date.now()
+    const windowSeconds = windowSecsRef.current
+    dispatch({
+      type: 'SET_CLOCK_STATE',
+      payload: {
+        mouthClockFilled:   0,
+        noseClockFilled:    0,
+        mouthClockSegments: Math.round(windowSeconds / MOUTH_PULSE_S),
+        noseClockSegments:  Math.round(windowSeconds / NOSE_PULSE_S),
+        alertFired:         false,
+        alertWindowStartMs: windowStartRef.current,
+      },
+    })
+  }, [isActive]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // processTickRef is refreshed every render so dispatch/state are never stale
   const processTickRef = useRef(() => {})
@@ -44,6 +93,22 @@ export function useAlerts() {
 
       if (mouthOpenRef.current) mouthCountRef.current++
       else noseCountRef.current++
+
+      // If the state switched and has now held steady for SWITCH_CONFIRM_MS,
+      // treat it as a genuine mode change: start a fresh window backdated by
+      // that confirm period so the old state's history stops diluting the
+      // ratio, without discarding the ticks already seen in the new state.
+      if (pendingSwitchRef.current) {
+        if (mouthOpenRef.current) switchMouthCountRef.current++
+        else switchNoseCountRef.current++
+
+        if (now - switchTimeRef.current >= SWITCH_CONFIRM_MS) {
+          mouthCountRef.current   = switchMouthCountRef.current
+          noseCountRef.current    = switchNoseCountRef.current
+          windowStartRef.current  = now - SWITCH_CONFIRM_MS
+          pendingSwitchRef.current = false
+        }
+      }
 
       let fired = false
 
@@ -91,13 +156,18 @@ export function useAlerts() {
     }
   })
 
-  // Attach once — stable wrapper always calls the fresh processTickRef
+  // Delegate to document instead of the #pulse-ring element directly: on first
+  // mount the app is still showing the sign-in/boot screen, so #pulse-ring
+  // doesn't exist yet. animationiteration bubbles, so listening on document
+  // (which always exists) means the handler works whenever #pulse-ring later
+  // mounts, instead of silently never attaching.
   useEffect(() => {
-    const el = document.getElementById('pulse-ring')
-    if (!el) return
-    const handler = () => processTickRef.current()
-    el.addEventListener('animationiteration', handler)
-    return () => el.removeEventListener('animationiteration', handler)
+    const handler = (e: AnimationEvent) => {
+      if ((e.target as HTMLElement | null)?.id !== 'pulse-ring') return
+      processTickRef.current()
+    }
+    document.addEventListener('animationiteration', handler)
+    return () => document.removeEventListener('animationiteration', handler)
   }, [])
 
   function doReset(): void {
@@ -105,6 +175,10 @@ export function useAlerts() {
     noseCountRef.current   = 0
     windowStartRef.current = Date.now()
     alertFiredRef.current  = false
+    pendingSwitchRef.current    = false
+    preSwitchStateRef.current   = false
+    switchMouthCountRef.current = 0
+    switchNoseCountRef.current  = 0
     const windowSeconds = windowSecsRef.current
     dispatch({
       type: 'SET_CLOCK_STATE',
