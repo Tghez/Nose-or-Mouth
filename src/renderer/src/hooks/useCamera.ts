@@ -101,5 +101,22 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
     }
   }
 
-  return { startCamera, stopCamera, toggleCamera }
+  // Tears down and re-acquires the media stream — same effect as the user
+  // toggling the camera off then on, which is known to clear a webcam/driver
+  // pipeline that came up in a bad state (see useDetection's boot watchdog).
+  async function restartCamera(
+    noFaceTimerRef: RefObject<ReturnType<typeof setTimeout> | null>
+  ): Promise<void> {
+    stopCamera(noFaceTimerRef)
+    dispatch({ type: 'SET_CAMERA_ENABLED', payload: true })
+    dispatch({ type: 'SET_STATUS', payload: 'Restarting camera…' })
+    const ok = await startCamera()
+    if (ok) {
+      dispatch({ type: 'SET_STATUS', payload: 'Detecting…' })
+    } else {
+      dispatch({ type: 'SET_CAMERA_ENABLED', payload: false })
+    }
+  }
+
+  return { startCamera, stopCamera, toggleCamera, restartCamera }
 }

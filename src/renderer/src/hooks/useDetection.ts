@@ -14,10 +14,18 @@ import type { FaceLandmarkerResult, HandLandmarkerResult } from '@mediapipe/task
 
 const BUFFER_SIZE = 3
 
+// If the camera + detector are both ready but not one single face has been
+// found in this long, the video pipeline likely came up in a bad state
+// (seen on some Windows webcams — dimensions report ready before real frames
+// are flowing). Restarting the stream once is what manually toggling the
+// camera off/on does, and reliably clears it.
+const STUCK_NO_FACE_MS = 6000
+
 export function useDetection(
   videoRef: RefObject<HTMLVideoElement | null>,
   faceCanvasRef: RefObject<HTMLCanvasElement | null>,
-  calibrationRefs: CalibrationRefs
+  calibrationRefs: CalibrationRefs,
+  onStuckNoFace: () => void
 ): void {
   const { state, dispatch } = useAppContext()
 
@@ -31,10 +39,27 @@ export function useDetection(
   const faceDetectedRef = useRef(false)
   const lipsOccludedRef = useRef(false)
 
-  useEffect(() => { cameraReadyRef.current  = state.cameraReady  }, [state.cameraReady])
-  useEffect(() => { mpReadyRef.current      = state.mediapipeReady }, [state.mediapipeReady])
+  // Boot-time stuck-pipeline watchdog. `watchdogFiredRef` is one-shot for the
+  // whole app run (not per camera session) so a legitimate "no face in frame
+  // yet" state — e.g. the user starts the app before sitting down — can never
+  // trigger a restart loop; it only ever auto-recovers the first bad pipeline.
+  const readySinceRef    = useRef<number | null>(null)
+  const watchdogFiredRef = useRef(false)
+  const onStuckNoFaceRef = useRef(onStuckNoFace)
+  useEffect(() => { onStuckNoFaceRef.current = onStuckNoFace }, [onStuckNoFace])
+
   useEffect(() => { thresholdRef.current    = state.threshold    }, [state.threshold])
   useEffect(() => { faceMeshRef.current     = state.faceMeshVisible }, [state.faceMeshVisible])
+
+  useEffect(() => {
+    cameraReadyRef.current = state.cameraReady
+    // New camera session: restart the "how long has this session gone
+    // without a face" clock and forget any face seen in the previous session.
+    readySinceRef.current = null
+    faceDetectedRef.current = false
+  }, [state.cameraReady])
+
+  useEffect(() => { mpReadyRef.current = state.mediapipeReady }, [state.mediapipeReady])
 
   // Single rAF loop started once for the app lifetime
   useEffect(() => {
@@ -46,6 +71,17 @@ export function useDetection(
       requestAnimationFrame(loop)
       if (!cameraReadyRef.current || !mpReadyRef.current) return
       const now = Date.now()
+      if (readySinceRef.current === null) readySinceRef.current = now
+      if (
+        !watchdogFiredRef.current &&
+        !faceDetectedRef.current &&
+        now - readySinceRef.current > STUCK_NO_FACE_MS
+      ) {
+        watchdogFiredRef.current = true
+        console.warn('No face detected within', STUCK_NO_FACE_MS, 'ms of camera start — restarting camera')
+        onStuckNoFaceRef.current()
+        return
+      }
       if (now - lastSendTime < 200) return
       lastSendTime = now
       const video = videoRef.current

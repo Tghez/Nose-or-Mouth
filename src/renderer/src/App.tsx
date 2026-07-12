@@ -41,14 +41,18 @@ export default function App() {
   const pendingBootSettingsRef = useRef<StoreSchema | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
 
-  const { startCamera, toggleCamera } = useCamera(videoRef)
+  const { startCamera, toggleCamera, restartCamera } = useCamera(videoRef)
   const { resetAlertWindow, pauseAlertWindow } = useAlerts()
   const { calState, calibrationRefs, startCalibration, skipCalibration, resetCalibration } = useCalibration()
   const { loadSettings } = useSettings()
   const { restoreSession } = useSession()
   const { persistSession, resetLimitGate } = useCounters(pauseAlertWindow)
 
-  useDetection(videoRef, faceCanvasRef, calibrationRefs)
+  function handleStuckNoFace(): void {
+    restartCamera(noFaceTimerRef)
+  }
+
+  useDetection(videoRef, faceCanvasRef, calibrationRefs, handleStuckNoFace)
   useIpc(persistSession, isPro)
 
   useEffect(() => {
