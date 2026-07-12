@@ -1,10 +1,7 @@
 import { useAppContext } from '../../store/AppContext'
-import { useAuthContext } from '../../store/AuthContext'
-import { isSupabaseConfigured } from '../../lib/supabase'
 
 export function LimitOverlay() {
   const { state, dispatch } = useAppContext()
-  const { user } = useAuthContext()
 
   function handleDismiss(): void {
     dispatch({ type: 'HIDE_MODAL', payload: 'limit' })
@@ -12,11 +9,7 @@ export function LimitOverlay() {
 
   function handleUpgrade(): void {
     dispatch({ type: 'HIDE_MODAL', payload: 'limit' })
-    if (isSupabaseConfigured && !user) {
-      dispatch({ type: 'SHOW_MODAL', payload: 'auth' })
-    } else {
-      dispatch({ type: 'SET_STATUS', payload: 'Pro subscriptions coming soon!' })
-    }
+    dispatch({ type: 'SET_STATUS', payload: 'Pro subscriptions coming soon!' })
   }
 
   return (
@@ -25,7 +18,7 @@ export function LimitOverlay() {
       <h2>Daily Limit Reached</h2>
       <p>Free accounts get <strong>10 minutes</strong> of live detection per day.</p>
       <p style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-        Sign in and upgrade to Pro for unlimited access + cloud sync.
+        Upgrade to Pro for unlimited access + cloud sync.
       </p>
       <button
         className="btn btn-primary"

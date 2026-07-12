@@ -68,7 +68,6 @@ const store = new Store<StoreSchema>({
     alertEnabled: true,
     alertWindowSeconds: 120,
     alertProportionThreshold: 0.6,
-    authPromptShown: false,
   }
 })
 
@@ -399,6 +398,10 @@ function registerIpcHandlers(): void {
   ipcMain.handle('quit-app', async () => {
     appState.isQuitting = true
     app.quit()
+  })
+
+  ipcMain.handle('minimize-window', async () => {
+    mainWindow?.minimize()
   })
 
   ipcMain.handle('get-summary', async (_event, date?: string) => {

@@ -23,6 +23,7 @@ const api: ElectronAPI = {
   exitMiniMode:          ()       => ipcRenderer.invoke('exit-mini-mode'),
   enterMiniMode:         ()       => ipcRenderer.invoke('enter-mini-mode'),
   quitApp:               ()       => ipcRenderer.invoke('quit-app'),
+  minimizeWindow:        ()       => ipcRenderer.invoke('minimize-window'),
   setModalOpen:          (open)   => ipcRenderer.invoke('set-modal-open', open),
   onMiniModeChanged:     (cb) => ipcRenderer.on('mini-mode-changed', (_e, mini) => cb(mini)),
 

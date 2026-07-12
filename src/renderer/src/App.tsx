@@ -1,4 +1,4 @@
-import { useRef, useEffect, type RefObject } from 'react'
+import { useRef, useEffect, useState, type RefObject } from 'react'
 import { useAppContext } from './store/AppContext'
 import { useAuthContext } from './store/AuthContext'
 import type { StoreSchema } from '../../types/session'
@@ -30,13 +30,15 @@ import { Toast } from './components/Toast'
 
 export default function App() {
   const { state, dispatch } = useAppContext()
-  const { initAuth, isPro } = useAuthContext()
+  const { initAuth, isPro, user } = useAuthContext()
 
   const videoRef      = useRef<HTMLVideoElement>(null) as RefObject<HTMLVideoElement | null>
   const faceCanvasRef = useRef<HTMLCanvasElement>(null) as RefObject<HTMLCanvasElement | null>
   const noFaceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bootedRef    = useRef(false)
-  const awaitingAuthPromptRef = useRef(false)
+  const bootContinuedRef = useRef(false)
+  const pendingBootSettingsRef = useRef<StoreSchema | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
 
   const { startCamera, toggleCamera } = useCamera(videoRef)
   const { resetAlertWindow, pauseAlertWindow } = useAlerts()
@@ -87,6 +89,12 @@ export default function App() {
     }
   }
 
+  async function runContinueBootOnce(settings: StoreSchema): Promise<void> {
+    if (bootContinuedRef.current) return
+    bootContinuedRef.current = true
+    await continueBootAfterAuth(settings)
+  }
+
   // Single boot effect
   const bootRef = useRef(async () => {
     dispatch({ type: 'SET_STATUS', payload: 'Initializing…' })
@@ -103,30 +111,28 @@ export default function App() {
     })
 
     await restoreSession(isProStatus)
+    setAuthChecked(true)
 
-    // On first-ever launch (fresh install), prompt sign-in before anything else.
-    // The rest of boot (camera permission, tutorial, calibration) continues once
-    // this is dismissed — see the showAuthModal effect below.
-    if (!signedIn && !settings.authPromptShown) {
-      await window.electronAPI.saveSettings({ authPromptShown: true })
-      dispatch({ type: 'SET_SETTINGS', payload: { authPromptShown: true } })
-      awaitingAuthPromptRef.current = true
+    // Google sign-in is required to enter the app at all. If there's no
+    // restored session, show the (non-dismissible) sign-in modal and wait —
+    // the effect below resumes boot once `user` actually becomes non-null.
+    if (!signedIn) {
+      pendingBootSettingsRef.current = settings
       dispatch({ type: 'SHOW_MODAL', payload: 'auth' })
       return
     }
 
-    await continueBootAfterAuth(settings)
+    await runContinueBootOnce(settings)
   })
 
-  // Resume boot once the first-launch auth prompt is dismissed (sign-in or Close)
-  const prevShowAuthModalRef = useRef(state.showAuthModal)
+  // Resume boot the moment sign-in completes (covers both the initial gate
+  // and a session that gets revoked/expires and is re-signed-in later)
   useEffect(() => {
-    if (awaitingAuthPromptRef.current && prevShowAuthModalRef.current && !state.showAuthModal) {
-      awaitingAuthPromptRef.current = false
-      continueBootAfterAuth(state.settings as StoreSchema)
+    if (user && pendingBootSettingsRef.current) {
+      dispatch({ type: 'HIDE_MODAL', payload: 'auth' })
+      runContinueBootOnce(pendingBootSettingsRef.current)
     }
-    prevShowAuthModalRef.current = state.showAuthModal
-  }, [state.showAuthModal]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Run boot once (guard against Strict Mode double-invoke)
   const bootEffect = useRef(false)
@@ -176,11 +182,6 @@ export default function App() {
     dispatch({ type: 'SHOW_MODAL', payload: 'calibration' })
   }
 
-  function handleSettingsSignIn(): void {
-    dispatch({ type: 'HIDE_MODAL', payload: 'settings' })
-    dispatch({ type: 'SHOW_MODAL', payload: 'auth' })
-  }
-
   async function handleSummaryClick(): Promise<void> {
     await persistSession()
     const data = await window.electronAPI.getSummary()
@@ -198,12 +199,37 @@ export default function App() {
     window.electronAPI.enterMiniMode()
   }
 
+  function handleMinimizeToTaskbar(): void {
+    window.electronAPI.minimizeWindow()
+  }
+
   function handleToggleCamera(): void {
     toggleCamera(state.cameraEnabled, noFaceTimerRef)
   }
 
   function handleShowToast(msg: string): void {
     dispatch({ type: 'SET_TOAST', payload: msg })
+  }
+
+  // Google sign-in is required to enter the app. Until we've confirmed there's
+  // no restored session, show nothing (avoids flashing the sign-in gate for
+  // returning users while the session check is still in flight).
+  if (!authChecked) {
+    return (
+      <>
+        <TitleBar onMinimize={handleMinimizeToTaskbar} />
+        <div id="status-bar">{state.statusText}</div>
+      </>
+    )
+  }
+
+  if (!user) {
+    return (
+      <>
+        <TitleBar onMinimize={handleMinimizeToTaskbar} />
+        <AuthModal />
+      </>
+    )
   }
 
   return (
@@ -219,10 +245,9 @@ export default function App() {
         onSkip={skipCalibration}
       />
       <SummaryModal />
-      <AuthModal />
       <LimitOverlay />
       <AlertPopup onReset={resetAlertWindow} onShowToast={handleShowToast} />
-      <SettingsPanel onRecalibrate={handleRecalibrate} onSignInClick={handleSettingsSignIn} />
+      <SettingsPanel onRecalibrate={handleRecalibrate} />
       <Toast />
       {!state.isMiniMode && <TitleBar onMinimize={handleMinimize} />}
       <div id="app" className={state.isMiniMode ? 'app-mini-hidden' : undefined}>

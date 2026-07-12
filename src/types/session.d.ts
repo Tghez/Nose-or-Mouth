@@ -19,7 +19,6 @@ export interface StoreSchema {
   alertWindowSeconds: number
   alertProportionThreshold: number
   lightMode: boolean
-  authPromptShown: boolean
 }
 
 export interface SummaryData {

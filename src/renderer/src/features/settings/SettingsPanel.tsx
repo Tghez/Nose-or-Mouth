@@ -16,10 +16,9 @@ const THRESHOLD_MAX = 0.250
 
 interface SettingsPanelProps {
   onRecalibrate: () => void
-  onSignInClick: () => void
 }
 
-export function SettingsPanel({ onRecalibrate, onSignInClick }: SettingsPanelProps) {
+export function SettingsPanel({ onRecalibrate }: SettingsPanelProps) {
   const { state, dispatch } = useAppContext()
   const { user, isPro, signOut } = useAuthContext()
   const { showSettings, settings, threshold } = state
@@ -153,35 +152,20 @@ export function SettingsPanel({ onRecalibrate, onSignInClick }: SettingsPanelPro
           </div>
         </div>
 
-        {isSupabaseConfigured && (
+        {isSupabaseConfigured && user && (
           <div className="settings-group" id="settings-account">
-            {!user ? (
-              <div className="settings-row" id="settings-account-out">
-                <div className="settings-row-label">
-                  <span>Account</span>
-                  <small>Sign in to enable cloud sync</small>
-                </div>
-                <button
-                  className="btn btn-secondary"
-                  id="settings-signin-btn"
-                  style={{ fontSize: '11px', padding: '5px 12px', flexShrink: 0 }}
-                  onClick={onSignInClick}
-                >Sign In</button>
+            <div className="settings-row" id="settings-account-in">
+              <div className="settings-row-label">
+                <span id="settings-account-email">{user.email}</span>
+                <small id="settings-account-plan">{isPro ? 'Pro Plan' : 'Free Plan'}</small>
               </div>
-            ) : (
-              <div className="settings-row" id="settings-account-in">
-                <div className="settings-row-label">
-                  <span id="settings-account-email">{user.email}</span>
-                  <small id="settings-account-plan">{isPro ? 'Pro Plan' : 'Free Plan'}</small>
-                </div>
-                <button
-                  className="btn btn-secondary"
-                  id="settings-signout-btn"
-                  style={{ fontSize: '11px', padding: '5px 12px', flexShrink: 0 }}
-                  onClick={handleSignOut}
-                >Sign Out</button>
-              </div>
-            )}
+              <button
+                className="btn btn-secondary"
+                id="settings-signout-btn"
+                style={{ fontSize: '11px', padding: '5px 12px', flexShrink: 0 }}
+                onClick={handleSignOut}
+              >Sign Out</button>
+            </div>
           </div>
         )}
 
