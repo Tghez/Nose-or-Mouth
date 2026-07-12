@@ -9,7 +9,7 @@ export function useCounters(
   pauseAlertWindow: () => void
 ) {
   const { state, dispatch } = useAppContext()
-  const { isPro, syncSession } = useAuthContext()
+  const { isPro } = useAuthContext()
 
   // Stable refs for the interval callback — avoids recreating interval on every render
   const mouthOpenRef    = useRef(state.mouthOpen)
@@ -39,10 +39,8 @@ export function useCounters(
 
   const saveDebounceRef = useRef(0)
   const pauseAlertRef   = useRef(pauseAlertWindow)
-  const syncRef         = useRef(syncSession)
 
   useEffect(() => { pauseAlertRef.current = pauseAlertWindow }, [pauseAlertWindow])
-  useEffect(() => { syncRef.current       = syncSession      }, [syncSession])
 
   async function persistSession(): Promise<void> {
     if (!isProRef.current) return
@@ -53,7 +51,6 @@ export function useCounters(
       noseBreathingSeconds:  baseNoseRef.current  + noseSecondsRef.current,
     }
     await window.electronAPI.saveSession(payload)
-    syncRef.current(payload).catch(() => {})
   }
 
   const persistRef = useRef(persistSession)

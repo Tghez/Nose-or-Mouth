@@ -27,3 +27,9 @@ export interface SummaryData {
   mouthSeconds: number
   streak: number
 }
+
+export interface WeekSession {
+  date: string
+  noseSeconds: number
+  mouthSeconds: number
+}

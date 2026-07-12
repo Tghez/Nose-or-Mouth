@@ -36,7 +36,7 @@ Electron main process (Node.js)
 
 Supabase (cloud backend — no separate server)
   ├── Auth (email/password)
-  ├── Database: profiles + sessions tables (RLS enforced)
+  ├── Database: profiles table (RLS enforced) — session history is local-only, not synced to Supabase
   └── Edge Functions (serverless)
         ├── stripe-checkout   → creates Stripe Checkout Session
         ├── stripe-portal     → creates billing portal session
@@ -113,9 +113,13 @@ src/
 
 supabase/
   migrations/
-    001_profiles.sql      — profiles table + RLS + auto-create trigger
-    002_sessions.sql      — sessions table + RLS
-  functions/              — Edge Functions (Phase 2, not yet created)
+    001_profiles.sql                     — profiles table + RLS + auto-create trigger
+    002_sessions.sql                     — sessions table + RLS (superseded, see 005)
+    003_sessions_7day_retention.sql      — sessions retention trigger (superseded, see 005)
+    004_profile_insert_conflict_safety.sql — hardens new-user trigger against OAuth re-linking
+    005_drop_sessions_table.sql          — drops sessions table; history is local-only now
+    006_simplify_subscription_status.sql — subscription_status collapsed to free/pro
+  functions/              — Edge Functions (Phase 3, not yet created)
     stripe-checkout/
     stripe-portal/
     stripe-webhook/
@@ -156,25 +160,17 @@ The app runs fully offline/locally if env vars are missing (`isSupabaseConfigure
 
 ### Tables
 
-**`public.profiles`** (1:1 with auth.users)
+**`public.profiles`** (1:1 with auth.users) — the only table; this is the sole source of truth for plan state
 - `id` uuid PK → auth.users
 - `stripe_customer_id` text
 - `stripe_subscription_id` text
-- `subscription_status` text — `'free'` | `'active'` | `'past_due'` | `'cancelled'`
+- `subscription_status` text — `'free'` | `'pro'` (CHECK constraint enforced)
 - `plan` text — `'monthly'` | `'annual'`
 
-**`public.sessions`**
-- `id` uuid PK
-- `user_id` uuid → auth.users
-- `date` date (unique per user per day)
-- `nose_seconds` integer
-- `mouth_seconds` integer
+RLS enabled. Migrations in `supabase/migrations/`. Session history is **not** stored in Supabase — it's local-only (`src/main/utils/storage.ts`), pruned to the last 7 days.
 
-Both tables have RLS enabled. Migrations in `supabase/migrations/`.
-
-Required grants (run once in SQL editor):
+Required grant (run once in SQL editor):
 ```sql
-GRANT SELECT, INSERT, UPDATE ON public.sessions TO authenticated;
 GRANT SELECT, UPDATE ON public.profiles TO authenticated;
 ```
 
@@ -191,7 +187,7 @@ Email/password. Email confirmation can be disabled in Supabase dashboard for dev
 | Cloud sync | ❌ | ✅ |
 | History / streaks | ❌ (local only) | ✅ |
 
-`FREE_DAILY_LIMIT_SECONDS = 600` defined in `hooks/useCounters.ts` and `hooks/useSession.ts`. Checked on every counter tick (useCounters) and on boot after session restore (useSession). `isPro` comes from `AuthContext` → `profiles.subscription_status === 'active'`.
+`FREE_DAILY_LIMIT_SECONDS = 600` defined in `hooks/useCounters.ts` and `hooks/useSession.ts`. Checked on every counter tick (useCounters) and on boot after session restore (useSession). `isPro` comes from `AuthContext` → `profiles.subscription_status === 'pro'`.
 
 ---
 
@@ -250,7 +246,7 @@ Email/password. Email confirmation can be disabled in Supabase dashboard for dev
 Full migration from vanilla JS to TypeScript with electron-vite.
 
 ### Phase 1 — Auth + Cloud Sync ✅
-Supabase email/password auth, cloud sync (upsert every 30s), free-tier daily limit (10 min), `isPro` gates unlimited detection.
+Supabase email/password auth, free-tier daily limit (10 min), `isPro` gates unlimited detection. Session cloud sync (Supabase `sessions` table) was later removed — session history is local-only now (`src/main/utils/storage.ts`), pruned to the last 7 days.
 
 ### Phase 2 — React Migration ✅
 Full renderer rewrite from monolithic `app.ts` + `index.html` to React 18 with feature-based folder structure. Zero behavioral or visual changes.
@@ -265,7 +261,7 @@ Full renderer rewrite from monolithic `app.ts` + `index.html` to React 18 with f
 2. **Three Supabase Edge Functions**:
    - `stripe-checkout` — receives `{ priceId, userId }`, creates Stripe Checkout Session, returns URL. App opens it via `shell.openExternal()`.
    - `stripe-portal` — creates billing portal session for subscription management
-   - `stripe-webhook` — validates Stripe signature, handles `customer.subscription.created/updated/deleted` → updates `profiles.subscription_status`
+   - `stripe-webhook` — validates Stripe signature, handles `customer.subscription.created/updated/deleted` → sets `profiles.subscription_status` to `'pro'` (active/trialing) or `'free'` (anything else — past_due, cancelled, etc.)
 3. **Wire upgrade button** — replace `'Pro subscriptions coming soon!'` placeholder in `features/limit/LimitOverlay.tsx` with real Stripe checkout call
 4. **Manage Subscription** — add button in `features/auth/AuthModal.tsx` signed-in view → opens billing portal
 

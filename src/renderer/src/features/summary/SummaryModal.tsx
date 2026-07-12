@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useAppContext } from '../../store/AppContext'
 import { useAuthContext } from '../../store/AuthContext'
-import type { WeekSession } from '../../store/AuthContext'
+import type { WeekSession } from '../../../../types/session'
 import { formatTime } from '../../lib/utils'
 import { DonutChart } from './DonutChart'
 import { WeekBarChart } from './WeekBarChart'
 
 export function SummaryModal() {
   const { state, dispatch } = useAppContext()
-  const { isPro, fetchWeekSessions } = useAuthContext()
+  const { isPro } = useAuthContext()
   const { showSummary, summaryData } = state
 
   const [tab, setTab]             = useState<'day' | 'week'>('day')
@@ -48,8 +48,12 @@ export function SummaryModal() {
     setTab('week')
     if (weekData !== null) return
     setWeekLoading(true)
-    const fetched = await fetchWeekSessions()
-    // Always use summaryData for today — Supabase may not have it yet
+    const all = await window.electronAPI.getAllSessions()
+    const sevenDaysAgo = new Date(Date.now() - 6 * 86400_000).toISOString().slice(0, 10)
+    const fetched: WeekSession[] = all
+      .filter(s => s.date >= sevenDaysAgo)
+      .map(s => ({ date: s.date, noseSeconds: s.noseBreathingSeconds, mouthSeconds: s.mouthBreathingSeconds }))
+    // Always use summaryData for today — local file may not have today's tick yet
     const merged = [
       ...fetched.filter(s => s.date !== date),
       { date, noseSeconds, mouthSeconds },

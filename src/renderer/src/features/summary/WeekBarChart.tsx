@@ -1,4 +1,4 @@
-import type { WeekSession } from '../../store/AuthContext'
+import type { WeekSession } from '../../../../types/session'
 
 interface Props {
   sessions: WeekSession[]
