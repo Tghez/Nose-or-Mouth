@@ -32,11 +32,10 @@ export interface AppContextState {
   cameraEnabled: boolean
   summaryData: SummaryData | null
   alertFired: boolean
-  alertWindowStartMs: number
-  mouthClockFilled: number
-  noseClockFilled: number
-  mouthClockSegments: number
-  noseClockSegments: number
+  clockFilled: number
+  clockSegments: number
+  clockColors: ('nose' | 'mouth')[]
+  noseFlash: { id: number; message: string } | null
 }
 
 type ModalName = 'settings' | 'summary' | 'calibration' | 'tutorial' | 'onboarding' | 'auth' | 'limit' | 'summaryLocked' | 'alert'
@@ -55,8 +54,8 @@ export type AppAction =
   | { type: 'SET_MEDIAPIPE_READY'; payload: boolean }
   | { type: 'SET_CAMERA_ENABLED'; payload: boolean }
   | { type: 'SET_FACE_MESH_VISIBLE'; payload: boolean }
-  | { type: 'SET_ALERT_STATE'; payload: { alertFired: boolean; alertWindowStartMs: number } }
-  | { type: 'SET_CLOCK_STATE'; payload: { mouthClockFilled: number; noseClockFilled: number; mouthClockSegments: number; noseClockSegments: number; alertFired: boolean; alertWindowStartMs: number } }
+  | { type: 'SET_CLOCK_STATE'; payload: { clockFilled: number; clockSegments: number; clockColors: ('nose' | 'mouth')[]; alertFired: boolean } }
+  | { type: 'SET_NOSE_FLASH'; payload: { id: number; message: string } | null }
   | { type: 'SET_TOAST'; payload: string | null }
   | { type: 'SET_SUMMARY_DATA'; payload: SummaryData }
   | { type: 'RESET_DAY' }
@@ -92,11 +91,10 @@ const initialState: AppContextState = {
   cameraEnabled: true,
   summaryData: null,
   alertFired: false,
-  alertWindowStartMs: 0,
-  mouthClockFilled: 0,
-  noseClockFilled: 0,
-  mouthClockSegments: 0,
-  noseClockSegments: 0,
+  clockFilled: 0,
+  clockSegments: 0,
+  clockColors: [],
+  noseFlash: null,
 }
 
 function modalKey(name: ModalName): keyof AppContextState {
@@ -142,10 +140,10 @@ function appReducer(state: AppContextState, action: AppAction): AppContextState 
       return { ...state, cameraEnabled: action.payload }
     case 'SET_FACE_MESH_VISIBLE':
       return { ...state, faceMeshVisible: action.payload }
-    case 'SET_ALERT_STATE':
-      return { ...state, ...action.payload }
     case 'SET_CLOCK_STATE':
       return { ...state, ...action.payload }
+    case 'SET_NOSE_FLASH':
+      return { ...state, noseFlash: action.payload }
     case 'SET_TOAST':
       return { ...state, toastMessage: action.payload }
     case 'SET_SUMMARY_DATA':

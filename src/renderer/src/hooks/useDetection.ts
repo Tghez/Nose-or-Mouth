@@ -25,7 +25,8 @@ export function useDetection(
   videoRef: RefObject<HTMLVideoElement | null>,
   faceCanvasRef: RefObject<HTMLCanvasElement | null>,
   calibrationRefs: CalibrationRefs,
-  onStuckNoFace: () => void
+  onStuckNoFace: () => void,
+  onFrame: (mouthOpen: boolean | null) => void
 ): void {
   const { state, dispatch } = useAppContext()
 
@@ -47,6 +48,9 @@ export function useDetection(
   const watchdogFiredRef = useRef(false)
   const onStuckNoFaceRef = useRef(onStuckNoFace)
   useEffect(() => { onStuckNoFaceRef.current = onStuckNoFace }, [onStuckNoFace])
+
+  const onFrameRef = useRef(onFrame)
+  useEffect(() => { onFrameRef.current = onFrame }, [onFrame])
 
   useEffect(() => { thresholdRef.current    = state.threshold    }, [state.threshold])
   useEffect(() => { faceMeshRef.current     = state.faceMeshVisible }, [state.faceMeshVisible])
@@ -114,6 +118,7 @@ export function useDetection(
     if (!results.faceLandmarks || results.faceLandmarks.length === 0) {
       if (ctx) clearFaceMesh(ctx, canvas)
       handleNoFace()
+      onFrameRef.current(null)
       return
     }
 
@@ -132,6 +137,7 @@ export function useDetection(
       dispatch({ type: 'SET_DETECTION_STATE', payload: { mouthOpen: false, faceDetected: true, lipsOccluded: true, paused: false } })
       dispatch({ type: 'SET_STATUS', payload: 'Lips covered — waiting' })
       window.electronAPI.updateTrayIcon('none')
+      onFrameRef.current(null)
       return
     }
     if (lipsOccludedRef.current) ratioBufferRef.current = []
@@ -150,6 +156,7 @@ export function useDetection(
 
     dispatch({ type: 'SET_DETECTION_STATE', payload: { mouthOpen, faceDetected: true, lipsOccluded: false, paused: false } })
     window.electronAPI.updateTrayIcon(mouthOpen ? 'mouth' : 'nose')
+    onFrameRef.current(mouthOpen)
   }
 
   function classifyMouth(ratio: number): boolean {

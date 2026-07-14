@@ -28,6 +28,7 @@ import { MiniView } from './features/mini/MiniView'
 import { TitleBar } from './components/TitleBar'
 import { Toolbar } from './components/Toolbar'
 import { Toast } from './components/Toast'
+import { NoseFlash } from './components/NoseFlash'
 
 export default function App() {
   const { state, dispatch } = useAppContext()
@@ -42,7 +43,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false)
 
   const { startCamera, toggleCamera, restartCamera } = useCamera(videoRef)
-  const { resetAlertWindow, pauseAlertWindow } = useAlerts()
+  const { resetAlertWindow, pauseAlertWindow, recordFrame } = useAlerts()
   const { calState, calibrationRefs, startCalibration, skipCalibration, resetCalibration } = useCalibration()
   const { loadSettings } = useSettings()
   const { restoreSession } = useSession()
@@ -52,7 +53,7 @@ export default function App() {
     restartCamera(noFaceTimerRef)
   }
 
-  useDetection(videoRef, faceCanvasRef, calibrationRefs, handleStuckNoFace)
+  useDetection(videoRef, faceCanvasRef, calibrationRefs, handleStuckNoFace, recordFrame)
   useIpc(persistSession, isPro)
 
   useEffect(() => {
@@ -260,6 +261,7 @@ export default function App() {
       <AlertPopup onReset={resetAlertWindow} onShowToast={handleShowToast} />
       <SettingsPanel onRecalibrate={handleRecalibrate} />
       <Toast />
+      <NoseFlash />
       {!state.isMiniMode && <TitleBar onMinimize={handleMinimize} />}
       <div id="app" className={state.isMiniMode ? 'app-mini-hidden' : undefined}>
         <Toolbar onSummaryClick={handleSummaryClick} />

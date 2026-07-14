@@ -7,6 +7,7 @@ const BAR_H     = 6     // radial bar height (tick-mark style)
 const FIXED_GAP = 0.5   // constant gap between bars regardless of numSegs
 
 function barWidth(numSegs: number): number {
+  if (numSegs <= 0) return 0
   const slotArc = (2 * Math.PI * R_INNER) / numSegs
   return Math.max(0.5, slotArc - FIXED_GAP)
 }
@@ -18,23 +19,19 @@ function cornerRadius(bw: number): number {
 export function ClockRing() {
   const { state } = useAppContext()
   const {
-    mouthOpen, faceDetected, lipsOccluded, paused,
-    mouthClockFilled, noseClockFilled, mouthClockSegments, noseClockSegments,
+    faceDetected, lipsOccluded, paused,
+    clockFilled, clockSegments, clockColors,
     settings,
   } = state
 
   const alertEnabled = settings.alertEnabled ?? true
   const isActive     = !paused && faceDetected && !lipsOccluded
-  const numSegs      = mouthOpen ? mouthClockSegments : noseClockSegments
 
-  if (!alertEnabled || numSegs === 0 || !isActive) return null
+  if (!alertEnabled || clockSegments === 0 || !isActive) return null
 
-  const filled     = mouthOpen ? mouthClockFilled : noseClockFilled
-  const barType    = mouthOpen ? 'mouth' : 'nose'
-  const color      = mouthOpen ? 'var(--mouth-color)' : 'var(--nose-color)'
   const emptyColor = 'rgba(255,255,255,0.10)'
-  const bw      = barWidth(numSegs)
-  const rx      = cornerRadius(bw)
+  const bw = barWidth(clockSegments)
+  const rx = cornerRadius(bw)
 
   return (
     <svg
@@ -43,9 +40,11 @@ export function ClockRing() {
       height="120"
       viewBox="0 0 120 120"
     >
-      {Array.from({ length: numSegs }, (_, i) => {
-        const isFilled  = i < filled
-        const theta     = i * (360 / numSegs)
+      {Array.from({ length: clockSegments }, (_, i) => {
+        const isFilled  = i < clockFilled
+        const barType   = clockColors[i]
+        const color     = barType === 'mouth' ? 'var(--mouth-color)' : 'var(--nose-color)'
+        const theta     = i * (360 / clockSegments)
         // rotate around SVG center (60,60), then translate the pivot to the inner ring edge
         const transform = `rotate(${theta} 60 60) translate(60 ${60 - R_INNER})`
 

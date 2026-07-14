@@ -1,236 +1,119 @@
 import { useEffect, useRef } from 'react'
 import { useAppContext } from '../store/AppContext'
 
-const THRESHOLD     = 0.9
-const MOUTH_PULSE_S = 1.1  // CSS pulse-mouth animation duration
-const NOSE_PULSE_S  = 1.8  // CSS pulse-nose animation duration
+const THRESHOLD = 0.9
+
+// A confirmed second requires 5 consecutive 200ms detection frames agreeing on
+// the same state (5 * 200ms = 1s). Anything less is noise/flicker and gets
+// discarded rather than banked, which naturally pauses window progress
+// whenever detection is unstable.
+const FRAMES_PER_SECOND = 5
 
 export function useAlerts() {
   const { state, dispatch } = useAppContext()
 
-  // Simple per-window counters — reset when the window period expires
-  const mouthCountRef  = useRef(0)
-  const noseCountRef   = useRef(0)
-  const windowStartRef = useRef(0)  // 0 = "never started"; first tick initialises it
-
-  const alertFiredRef = useRef(false)
-
-  // Tracks a nose/mouth state switch that hasn't been confirmed sustained yet.
-  // Since mouthOpen is boolean, a flip while a switch is already pending can
-  // only be a return to the state we started from (preSwitchStateRef) — that
-  // cancels the pending switch outright rather than arming a new one, so
-  // briefly dipping into the other state and coming straight back never
-  // resets anything, no matter how long you then stay back at baseline.
-  const SWITCH_CONFIRM_MS   = 5000
-  const pendingSwitchRef    = useRef(false)
-  const preSwitchStateRef   = useRef(false)
-  const switchTimeRef       = useRef(0)
-  const switchMouthCountRef = useRef(0)
-  const switchNoseCountRef  = useRef(0)
-
-  // Stable refs so the animationiteration handler always reads latest values
-  const mouthOpenRef  = useRef(state.mouthOpen)
   const enabledRef    = useRef(state.settings.alertEnabled ?? true)
   const windowSecsRef = useRef(state.settings.alertWindowSeconds ?? 120)
+  const pausedRef     = useRef(state.paused)
 
-  useEffect(() => {
-    if (state.mouthOpen !== mouthOpenRef.current) {
-      if (pendingSwitchRef.current) {
-        // Back to preSwitchStateRef already (only two possible states) —
-        // this was a brief dip, not a sustained switch. Cancel it.
-        pendingSwitchRef.current = false
-      } else {
-        pendingSwitchRef.current    = true
-        preSwitchStateRef.current   = mouthOpenRef.current
-        switchTimeRef.current       = Date.now()
-        switchMouthCountRef.current = 0
-        switchNoseCountRef.current  = 0
-      }
-    }
-    mouthOpenRef.current = state.mouthOpen
-  }, [state.mouthOpen])
-  useEffect(() => { enabledRef.current    = state.settings.alertEnabled ?? true      }, [state.settings.alertEnabled])
-  useEffect(() => { windowSecsRef.current = state.settings.alertWindowSeconds ?? 120 }, [state.settings.alertWindowSeconds])
+  useEffect(() => { enabledRef.current = state.settings.alertEnabled ?? true }, [state.settings.alertEnabled])
+  useEffect(() => { pausedRef.current  = state.paused }, [state.paused])
 
-  // Tracks how long detection has been inactive (no face / paused / lips
-  // covered), so a resume can shift the window forward by that gap instead
-  // of silently letting it count as elapsed window time with zero samples.
-  const inactiveSinceRef = useRef(0)  // 0 = currently active
+  // Consecutive same-state frame streak, used to confirm one banked second.
+  const streakStateRef = useRef<boolean | null>(null)
+  const streakCountRef = useRef(0)
 
-  // Start the window the instant detection actually goes active, rather than
-  // waiting on the first #pulse-ring animationiteration (up to 1.1-1.8s later).
-  const isActive = !state.paused && state.faceDetected && !state.lipsOccluded
-  useEffect(() => {
-    if (!isActive) {
-      // Only mark the pause point once — a still-inactive re-render (e.g.
-      // another field flips while faceDetected stays false) shouldn't push
-      // the timestamp forward.
-      if (windowStartRef.current !== 0 && inactiveSinceRef.current === 0) {
-        inactiveSinceRef.current = Date.now()
-      }
-      return
-    }
+  // Ordered list of confirmed seconds in the current window — length doubles
+  // as the "filled" count, and each entry's color for rendering the ring.
+  const clockColorsRef = useRef<('nose' | 'mouth')[]>([])
 
-    const windowSeconds = windowSecsRef.current
-    const mouthSegs      = Math.round(windowSeconds / MOUTH_PULSE_S)
-    const noseSegs       = Math.round(windowSeconds / NOSE_PULSE_S)
-
-    if (windowStartRef.current === 0) {
-      // First-ever activation — start a clean window.
-      windowStartRef.current = Date.now()
-      dispatch({
-        type: 'SET_CLOCK_STATE',
-        payload: {
-          mouthClockFilled:   0,
-          noseClockFilled:    0,
-          mouthClockSegments: mouthSegs,
-          noseClockSegments:  noseSegs,
-          alertFired:         false,
-          alertWindowStartMs: windowStartRef.current,
-        },
-      })
-    } else if (inactiveSinceRef.current !== 0) {
-      // Resuming after a pause — shift the window (and any pending switch
-      // timer) forward by the inactive gap so it's excluded from both.
-      const gap = Date.now() - inactiveSinceRef.current
-      windowStartRef.current += gap
-      if (pendingSwitchRef.current) switchTimeRef.current += gap
-      inactiveSinceRef.current = 0
-
-      dispatch({
-        type: 'SET_CLOCK_STATE',
-        payload: {
-          mouthClockFilled:   Math.min(mouthCountRef.current, mouthSegs),
-          noseClockFilled:    Math.min(noseCountRef.current,  noseSegs),
-          mouthClockSegments: mouthSegs,
-          noseClockSegments:  noseSegs,
-          alertFired:         alertFiredRef.current,
-          alertWindowStartMs: windowStartRef.current,
-        },
-      })
-    }
-  }, [isActive]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // processTickRef is refreshed every render so dispatch/state are never stale
-  const processTickRef = useRef(() => {})
-  useEffect(() => {
-    processTickRef.current = () => {
-      if (!enabledRef.current) return
-
-      const now           = Date.now()
-      const windowSeconds = windowSecsRef.current
-      const windowMs      = windowSeconds * 1000
-      const mouthSegs     = Math.round(windowSeconds / MOUTH_PULSE_S)
-      const noseSegs      = Math.round(windowSeconds / NOSE_PULSE_S)
-
-      // windowStartRef starts at 0, so the very first tick always initialises
-      // a clean window from the moment detection is actually running.
-      if (windowStartRef.current === 0) {
-        windowStartRef.current = now
-      }
-
-      if (mouthOpenRef.current) mouthCountRef.current++
-      else noseCountRef.current++
-
-      // If the state switched and has now held steady for SWITCH_CONFIRM_MS,
-      // treat it as a genuine mode change: start a fresh window backdated by
-      // that confirm period so the old state's history stops diluting the
-      // ratio, without discarding the ticks already seen in the new state.
-      if (pendingSwitchRef.current) {
-        if (mouthOpenRef.current) switchMouthCountRef.current++
-        else switchNoseCountRef.current++
-
-        if (now - switchTimeRef.current >= SWITCH_CONFIRM_MS) {
-          mouthCountRef.current   = switchMouthCountRef.current
-          noseCountRef.current    = switchNoseCountRef.current
-          windowStartRef.current  = now - SWITCH_CONFIRM_MS
-          pendingSwitchRef.current = false
-        }
-      }
-
-      let fired = false
-
-      // Only evaluate and fire once the full window has actually elapsed in real
-      // time. Nose and mouth pulses tick at different cadences (NOSE_PULSE_S vs
-      // MOUTH_PULSE_S), so checking the ratio on every tick let a fast-ticking
-      // mode cross 90% well before the configured window duration had passed.
-      if (now - windowStartRef.current >= windowMs) {
-        const mp = mouthCountRef.current / mouthSegs
-        const np = noseCountRef.current  / noseSegs
-        const winMins = Math.round(windowSeconds / 60)
-
-        if (mp >= THRESHOLD) {
-          window.electronAPI.showNotification({
-            title: 'Mouth Breather Alert',
-            body: `You've been mouth breathing for most of the last ${winMins} min — try breathing through your nose!`,
-          })
-          fired = true
-        } else if (np >= THRESHOLD) {
-          window.electronAPI.showNotification({
-            title: 'Great work! 🌿',
-            body: `You've been breathing through your nose for the last ${winMins} min. Keep it up!`,
-          })
-          fired = true
-        }
-
-        mouthCountRef.current  = 0
-        noseCountRef.current   = 0
-        windowStartRef.current = now
-      }
-
-      alertFiredRef.current = fired
-
-      dispatch({
-        type: 'SET_CLOCK_STATE',
-        payload: {
-          mouthClockFilled:   Math.min(mouthCountRef.current, mouthSegs),
-          noseClockFilled:    Math.min(noseCountRef.current,  noseSegs),
-          mouthClockSegments: mouthSegs,
-          noseClockSegments:  noseSegs,
-          alertFired:         alertFiredRef.current,
-          alertWindowStartMs: windowStartRef.current,
-        },
-      })
-    }
-  })
-
-  // Delegate to document instead of the #pulse-ring element directly: on first
-  // mount the app is still showing the sign-in/boot screen, so #pulse-ring
-  // doesn't exist yet. animationiteration bubbles, so listening on document
-  // (which always exists) means the handler works whenever #pulse-ring later
-  // mounts, instead of silently never attaching.
-  useEffect(() => {
-    const handler = (e: AnimationEvent) => {
-      if ((e.target as HTMLElement | null)?.id !== 'pulse-ring') return
-      processTickRef.current()
-    }
-    document.addEventListener('animationiteration', handler)
-    return () => document.removeEventListener('animationiteration', handler)
-  }, [])
-
-  function doReset(): void {
-    mouthCountRef.current  = 0
-    noseCountRef.current   = 0
-    windowStartRef.current = Date.now()
-    alertFiredRef.current  = false
-    pendingSwitchRef.current    = false
-    preSwitchStateRef.current   = false
-    switchMouthCountRef.current = 0
-    switchNoseCountRef.current  = 0
-    inactiveSinceRef.current    = 0
-    const windowSeconds = windowSecsRef.current
+  function dispatchClockState(alertFired: boolean): void {
     dispatch({
       type: 'SET_CLOCK_STATE',
       payload: {
-        mouthClockFilled:        0,
-        noseClockFilled:         0,
-        mouthClockSegments:      Math.round(windowSeconds / MOUTH_PULSE_S),
-        noseClockSegments:       Math.round(windowSeconds / NOSE_PULSE_S),
-        alertFired:        false,
-        alertWindowStartMs: 0,
+        clockFilled:    clockColorsRef.current.length,
+        clockSegments:  windowSecsRef.current,
+        clockColors:    [...clockColorsRef.current],
+        alertFired,
       },
     })
   }
 
-  return { resetAlertWindow: doReset, pauseAlertWindow: doReset }
+  // Keep windowSecsRef in sync with settings, seed clockSegments on mount, and
+  // clamp any in-progress window if the user shrinks the window mid-session.
+  useEffect(() => {
+    windowSecsRef.current = state.settings.alertWindowSeconds ?? 120
+    if (clockColorsRef.current.length > windowSecsRef.current) {
+      clockColorsRef.current = clockColorsRef.current.slice(0, windowSecsRef.current)
+    }
+    dispatchClockState(false)
+  }, [state.settings.alertWindowSeconds]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function bankSecond(mouthOpen: boolean): void {
+    const colors = clockColorsRef.current
+    colors.push(mouthOpen ? 'mouth' : 'nose')
+
+    let fired = false
+    const segs = windowSecsRef.current
+
+    if (colors.length >= segs) {
+      const mouthCount = colors.filter((c) => c === 'mouth').length
+      const mp = mouthCount / segs
+      const np = (segs - mouthCount) / segs
+      const winLabel = segs < 60 ? `${segs} sec` : `${Math.round(segs / 60)} min`
+
+      if (mp >= THRESHOLD) {
+        window.electronAPI.showNotification({
+          title: 'Mouth Breather Alert',
+          body: `You've been mouth breathing for most of the last ${winLabel} — try breathing through your nose!`,
+        })
+        fired = true
+      } else if (np >= THRESHOLD) {
+        // Nose breathing is encouraged in-app only (silent flash), not via OS notification.
+        dispatch({
+          type: 'SET_NOSE_FLASH',
+          payload: {
+            id: Date.now(),
+            message: `You've been breathing through your nose for the last ${winLabel}. Keep it up!`,
+          },
+        })
+        fired = true
+      }
+
+      clockColorsRef.current = []
+    }
+
+    dispatchClockState(fired)
+  }
+
+  function recordFrame(mouthOpen: boolean | null): void {
+    if (!enabledRef.current) return
+
+    if (mouthOpen === null || pausedRef.current) {
+      streakStateRef.current = null
+      streakCountRef.current = 0
+      return
+    }
+
+    if (streakStateRef.current === mouthOpen) {
+      streakCountRef.current++
+    } else {
+      streakStateRef.current = mouthOpen
+      streakCountRef.current = 1
+    }
+
+    if (streakCountRef.current >= FRAMES_PER_SECOND) {
+      streakCountRef.current = 0
+      bankSecond(mouthOpen)
+    }
+  }
+
+  function doReset(): void {
+    streakStateRef.current = null
+    streakCountRef.current = 0
+    clockColorsRef.current = []
+    dispatchClockState(false)
+  }
+
+  return { resetAlertWindow: doReset, pauseAlertWindow: doReset, recordFrame }
 }

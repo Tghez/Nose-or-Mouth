@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import { useAppContext } from '../../store/AppContext'
 import { Toggle } from '../../components/Toggle'
 import { formatMS } from '../../lib/utils'
@@ -10,25 +9,10 @@ interface AlertPopupProps {
 
 export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
   const { state, dispatch } = useAppContext()
-  const { showAlertPopup, settings, alertWindowStartMs, paused, faceDetected, lipsOccluded } = state
+  const { showAlertPopup, settings, clockFilled, clockSegments } = state
 
   const alertEnabled = settings.alertEnabled ?? true
   const alertWindowSeconds = settings.alertWindowSeconds ?? 120
-  const isActive = !paused && faceDetected && !lipsOccluded
-
-  // Independent 1-second counter — not tied to pulse tick rate. Frozen while
-  // detection is inactive (no face / paused / lips covered) so it doesn't
-  // visibly keep counting up when nothing is actually being measured.
-  const [elapsed, setElapsed] = useState(0)
-  useEffect(() => {
-    if (alertWindowStartMs === 0) { setElapsed(0); return }
-    if (!isActive) return
-    setElapsed(Math.floor((Date.now() - alertWindowStartMs) / 1000))
-    const id = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - alertWindowStartMs) / 1000))
-    }, 1000)
-    return () => clearInterval(id)
-  }, [alertWindowStartMs, isActive])
 
   function close(): void {
     dispatch({ type: 'HIDE_MODAL', payload: 'alert' })
@@ -55,9 +39,9 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
     onShowToast('Alert window reset ✓')
   }
 
-  const counterText = (!alertEnabled || alertWindowStartMs === 0)
+  const counterText = (!alertEnabled || clockSegments === 0)
     ? '—'
-    : formatMS(elapsed)
+    : formatMS(clockFilled)
 
   return (
     <>
@@ -72,7 +56,7 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
           <button id="alert-popup-close" onClick={close}>✕</button>
         </div>
         <div id="alert-popup-desc">
-          Get notified when your breathing pattern crosses 90% in either direction within your chosen time window. The clock ring around the emoji tracks each state's progress.
+          Each confirmed second of breathing fills one piece of the ring around the emoji — orange for mouth, green for nose. Get notified when your ratio crosses 90% either way in your chosen window.
         </div>
         <div className="alert-row" id="alert-counter-row">
           <div className="alert-row-label">
@@ -102,6 +86,7 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
               value={alertWindowSeconds}
               onChange={handleWindowChange}
             >
+              <option value="10">10 sec (debug)</option>
               <option value="60">1 min</option>
               <option value="120">2 min</option>
               <option value="180">3 min</option>
