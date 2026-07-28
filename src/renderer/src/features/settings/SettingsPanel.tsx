@@ -120,6 +120,14 @@ export function SettingsPanel({ onRecalibrate }: SettingsPanelProps) {
                 </div>
               </div>
             </div>
+            <button
+              className="btn btn-secondary"
+              id="recalibrate-btn"
+              style={{ width: '100%' }}
+              onClick={onRecalibrate}
+            >
+              Calibrate Detection Threshold
+            </button>
           </div>
         </div>
 
@@ -135,20 +143,6 @@ export function SettingsPanel({ onRecalibrate }: SettingsPanelProps) {
               value={settings.summaryTime ?? '18:00'}
               onChange={e => saveSetting({ summaryTime: e.target.value })}
             />
-          </div>
-        </div>
-
-        <div className="settings-group">
-          <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
-            <span>Re-run Calibration</span>
-            <button
-              className="btn btn-secondary"
-              id="recalibrate-btn"
-              style={{ width: '100%' }}
-              onClick={onRecalibrate}
-            >
-              Calibrate Detection Threshold
-            </button>
           </div>
         </div>
 
