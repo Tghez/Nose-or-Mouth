@@ -56,7 +56,7 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
           <button id="alert-popup-close" onClick={close}>✕</button>
         </div>
         <div id="alert-popup-desc">
-          Each confirmed second of breathing fills one piece of the ring around the emoji — orange for mouth, green for nose. Get notified when your ratio crosses 90% either way in your chosen window.
+          Get notified if you're mouth breathing too much within your chosen time window.
         </div>
         <div className="alert-row" id="alert-counter-row">
           <div className="alert-row-label">
