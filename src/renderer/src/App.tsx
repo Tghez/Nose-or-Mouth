@@ -251,6 +251,7 @@ export default function App() {
       <CalibrationModal
         calState={calState}
         calibrationRefs={calibrationRefs}
+        videoRef={videoRef}
         onStart={startCalibration}
         onClose={() => {}}
         onSkip={skipCalibration}
