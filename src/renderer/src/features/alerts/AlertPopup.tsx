@@ -86,7 +86,6 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
               value={alertWindowSeconds}
               onChange={handleWindowChange}
             >
-              <option value="10">10 sec (debug)</option>
               <option value="60">1 min</option>
               <option value="120">2 min</option>
               <option value="180">3 min</option>

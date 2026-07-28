@@ -6,6 +6,13 @@ const R_INNER   = 44    // inner edge of bars from SVG center (SVG units = px)
 const BAR_H     = 6     // radial bar height (tick-mark style)
 const FIXED_GAP = 0.5   // constant gap between bars regardless of numSegs
 
+// Each bar represents 2 confirmed real seconds, so one bar fills per pulse
+// cycle (pulse-ring keyframes in styles.css are 2s). Window-progress
+// bookkeeping in useAlerts.ts (elapsed-seconds text, notification timing)
+// stays in real seconds and is untouched by this — only the visual grouping
+// changes here.
+const SECONDS_PER_BAR = 2
+
 function barWidth(numSegs: number): number {
   if (numSegs <= 0) return 0
   const slotArc = (2 * Math.PI * R_INNER) / numSegs
@@ -29,8 +36,11 @@ export function ClockRing() {
 
   if (!alertEnabled || clockSegments === 0 || !isActive) return null
 
+  const barCount   = Math.max(1, Math.ceil(clockSegments / SECONDS_PER_BAR))
+  const barsFilled = Math.floor(clockFilled / SECONDS_PER_BAR)
+
   const emptyColor = 'rgba(255,255,255,0.10)'
-  const bw = barWidth(clockSegments)
+  const bw = barWidth(barCount)
   const rx = cornerRadius(bw)
 
   return (
@@ -40,11 +50,11 @@ export function ClockRing() {
       height="120"
       viewBox="0 0 120 120"
     >
-      {Array.from({ length: clockSegments }, (_, i) => {
-        const isFilled  = i < clockFilled
-        const barType   = clockColors[i]
+      {Array.from({ length: barCount }, (_, i) => {
+        const isFilled  = i < barsFilled
+        const barType   = isFilled ? clockColors[i * SECONDS_PER_BAR + SECONDS_PER_BAR - 1] : undefined
         const color     = barType === 'mouth' ? 'var(--mouth-color)' : 'var(--nose-color)'
-        const theta     = i * (360 / clockSegments)
+        const theta     = i * (360 / barCount)
         // rotate around SVG center (60,60), then translate the pivot to the inner ring edge
         const transform = `rotate(${theta} 60 60) translate(60 ${60 - R_INNER})`
 

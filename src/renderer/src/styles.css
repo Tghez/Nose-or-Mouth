@@ -755,6 +755,8 @@ body.light #title-btn-close:hover {
   transform: translate(-50%, -66%);
   pointer-events: none;
   z-index: 0;
+  opacity: 0;
+  will-change: transform, opacity;
 }
 
 #state-emoji {
@@ -777,25 +779,27 @@ body.light #title-btn-close:hover {
 /* State classes toggled on #state-indicator */
 .state-nose #state-emoji  { filter: drop-shadow(0 0 8px var(--nose-glow)); }
 .state-nose #state-label  { color: var(--nose-color); }
-.state-nose #pulse-ring   { animation: pulse-nose 1s ease-out infinite; }
+.state-nose #pulse-ring   {
+  box-shadow: 0 0 4px 8px var(--nose-glow);
+  animation: pulse-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
 
 .state-mouth #state-emoji { filter: drop-shadow(0 0 8px var(--mouth-glow)); }
 .state-mouth #state-label { color: var(--mouth-color); }
-.state-mouth #pulse-ring  { animation: pulse-mouth 1s ease-out infinite; }
+.state-mouth #pulse-ring  {
+  box-shadow: 0 0 4px 8px var(--mouth-glow);
+  animation: pulse-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
 
 .state-none #state-emoji  { filter: grayscale(1); opacity: 0.35; }
 .state-none #state-label  { color: var(--text-faint); }
 
-@keyframes pulse-nose {
-  0%   { box-shadow: 0 0 0 0   var(--nose-glow); }
-  70%  { box-shadow: 0 0 0 22px rgba(34,197,94,0); }
-  100% { box-shadow: 0 0 0 0   rgba(34,197,94,0); }
-}
-
-@keyframes pulse-mouth {
-  0%   { box-shadow: 0 0 0 0   var(--mouth-glow); }
-  70%  { box-shadow: 0 0 0 26px rgba(245,158,11,0); }
-  100% { box-shadow: 0 0 0 0   rgba(245,158,11,0); }
+/* transform/opacity only (no box-shadow spread) so this runs on the
+   compositor instead of repainting every frame — box-shadow itself is a
+   static per-state color set above, not part of the animated timeline. */
+@keyframes pulse-ring {
+  0%   { transform: translate(-50%, -66%) scale(0.55); opacity: 0.6; }
+  100% { transform: translate(-50%, -66%) scale(1.4);  opacity: 0; }
 }
 
 /* ── Clock ring ─────────────────────────────────────────────────────────── */
@@ -1679,10 +1683,23 @@ input[type=time]:focus,
   position: absolute;
   inset: 0;
   border-radius: 50%;
+  opacity: 0;
+  will-change: transform, opacity;
 }
 
-#mini-view.state-nose  #mini-pulse { animation: pulse-nose  1s ease-out infinite; }
-#mini-view.state-mouth #mini-pulse { animation: pulse-mouth 1s ease-out infinite; }
+#mini-view.state-nose  #mini-pulse {
+  box-shadow: 0 0 2px 4px var(--nose-glow);
+  animation: mini-pulse-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+#mini-view.state-mouth #mini-pulse {
+  box-shadow: 0 0 2px 4px var(--mouth-glow);
+  animation: mini-pulse-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@keyframes mini-pulse-ring {
+  0%   { transform: scale(0.55); opacity: 0.6; }
+  100% { transform: scale(1.4);  opacity: 0; }
+}
 
 #mini-label {
   font-size: 20px;
