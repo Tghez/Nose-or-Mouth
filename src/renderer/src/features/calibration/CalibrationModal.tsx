@@ -33,7 +33,7 @@ const DASHARRAY = `${SEGMENT_LEN.toFixed(1)} ${CIRCUMFERENCE.toFixed(1)}`
 // A <g rotate(-90)> on the circles shifts the visual start to 12 o'clock.
 const OFFSETS = [0, -SEGMENT_FULL, -SEGMENT_FULL * 2]
 
-export function CalibrationModal({ calState, videoRef, onStart, onClose, onSkip }: CalibrationModalProps) {
+export function CalibrationModal({ calState, calibrationRefs, videoRef, onStart, onClose, onSkip }: CalibrationModalProps) {
   const { state, dispatch } = useAppContext()
   const previewVideoRef = useRef<HTMLVideoElement>(null)
   const [camRect, setCamRect] = useState<CamRect>(FALLBACK_RECT)
@@ -105,6 +105,7 @@ export function CalibrationModal({ calState, videoRef, onStart, onClose, onSkip 
         style={{ top: camRect.top, left: camRect.left, width: camRect.width, height: camRect.height }}
       >
         <video ref={previewVideoRef} autoPlay playsInline muted />
+        <canvas ref={calibrationRefs.canvasRef} className="cal-face-canvas" width={320} height={180} />
         {videoOverlay}
       </div>
 

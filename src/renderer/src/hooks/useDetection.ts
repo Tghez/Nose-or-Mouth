@@ -115,8 +115,12 @@ export function useDetection(
     if (!canvas || !video) return
     const ctx = canvas.getContext('2d')
 
+    const calCanvas = calibrationRefs.canvasRef.current
+    const calCtx = calCanvas?.getContext('2d') ?? null
+
     if (!results.faceLandmarks || results.faceLandmarks.length === 0) {
       if (ctx) clearFaceMesh(ctx, canvas)
+      if (calCtx && calCanvas) clearFaceMesh(calCtx, calCanvas)
       handleNoFace()
       onFrameRef.current(null)
       return
@@ -128,6 +132,14 @@ export function useDetection(
       drawFaceMesh(ctx, canvas, video, results)
     } else if (ctx) {
       clearFaceMesh(ctx, canvas)
+    }
+
+    // Always draw the overlay onto the calibration preview (same video stream,
+    // so videoWidth/videoHeight used for scaling match), regardless of the
+    // main-screen "Overlay" toggle — it helps the user align their face while
+    // calibrating.
+    if (calCtx && calCanvas) {
+      drawFaceMesh(calCtx, calCanvas, video, results)
     }
 
     const lm = results.faceLandmarks[0]

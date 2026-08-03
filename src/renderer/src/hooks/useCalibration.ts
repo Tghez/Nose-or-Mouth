@@ -8,6 +8,9 @@ export interface CalibrationRefs {
   collectingRef: MutableRefObject<boolean>
   samplesRef: MutableRefObject<number[]>
   onRatioUpdate: (ratio: number) => void
+  // Set by CalibrationModal while it's mounted, so the detection loop can
+  // mirror the face-mesh overlay onto the calibration preview too.
+  canvasRef: MutableRefObject<HTMLCanvasElement | null>
 }
 
 export interface CalibrationHookState {
@@ -42,6 +45,7 @@ export function useCalibration() {
   const activeRef: MutableRefObject<boolean> = useRef(false)
   const collectingRef: MutableRefObject<boolean> = useRef(false)
   const samplesRef: MutableRefObject<number[]> = useRef([])
+  const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef(null)
 
   function onRatioUpdate(ratio: number): void {
     if (activeRef.current) {
@@ -50,7 +54,7 @@ export function useCalibration() {
   }
 
   // Stable container — individual ref .current values change, object identity stays the same
-  const calibrationRefs = useRef<CalibrationRefs>({ activeRef, collectingRef, samplesRef, onRatioUpdate }).current
+  const calibrationRefs = useRef<CalibrationRefs>({ activeRef, collectingRef, samplesRef, onRatioUpdate, canvasRef }).current
 
   async function runCountdown(step: number, instruction: string, explanation: string): Promise<void> {
     for (const n of [3, 2, 1]) {
