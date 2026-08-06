@@ -14,6 +14,10 @@
   --red: #ef4444;
   --radius: 10px;
   --radius-sm: 6px;
+  --tut-card-bg: #202b3d;
+  --tut-card-border: #3b4a62;
+  --tut-card-text: #f1f5f9;
+  --tut-card-text-dim: #b7c2d6;
 }
 
 /* ── Light mode overrides ────────────────────────────────────────────────── */
@@ -25,13 +29,13 @@ body.light {
   --text: #111111;
   --text-dim: #6b7280;
   --text-faint: #9ca3af;
+  --tut-card-bg: #e6edf7;
+  --tut-card-border: #c3d0e3;
+  --tut-card-text: #1a2130;
+  --tut-card-text-dim: #4b5670;
 }
 
 body.light .overlay {
-  background: rgba(245, 245, 245, 0.96);
-}
-
-body.light #tutorial-overlay {
   background: rgba(245, 245, 245, 0.96);
 }
 
@@ -858,13 +862,22 @@ body.light #title-btn-close:hover {
 }
 
 /* ── Clock ring ─────────────────────────────────────────────────────────── */
-#clock-ring-svg {
+/* Stable wrapper (always in the DOM, unlike #clock-ring-svg which the
+   ClockRing component may render as null) so the tutorial can spotlight
+   exactly where the ring sits even when it isn't currently drawn. */
+#clock-ring-wrap {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -56%);
+  width: 120px;
+  height: 120px;
   pointer-events: none;
   z-index: 0;
+}
+
+#clock-ring-svg {
+  display: block;
 }
 
 .clock-bar {
@@ -1260,69 +1273,255 @@ input[type=time]:focus,
 
 /* ── Tutorial ────────────────────────────────────────────────────────────── */
 #tutorial-overlay {
-  background: rgba(0, 0, 0, 0.88);
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 400;
+  transition: background 0.25s;
 }
 
+/* In spotlight mode the dimming comes from .tut-spotlight's giant box-shadow
+   instead, so the overlay itself goes transparent (it still exists to catch
+   clicks over the whole window). */
+#tutorial-overlay.tut-spotlight-mode {
+  background: transparent;
+}
+
+/* Small, solid (non-black) card for the welcome/closing steps. */
 #tutorial-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 28px 24px 20px;
   width: 100%;
-  max-width: 320px;
+  max-width: 190px;
+  background: var(--tut-card-bg);
+  border: 1px solid var(--tut-card-border);
+  border-radius: 12px;
+  padding: 16px 14px 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
   text-align: center;
+  animation: tut-card-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-#tutorial-icon {
-  font-size: 52px;
+/* Cutout that "spotlights" a real UI element: a transparent box whose
+   box-shadow gently dims the rest of the (fixed 420x510) window, with a thin
+   steady outline plus a soft, thick pulse that grows and fades outward from
+   it (::after, below) to draw the eye to whichever component is currently
+   being explained. Position/size are set inline from the measured target
+   rect; the same easing the app already uses for its pulse rings (see
+   #pulse-ring) makes the glide between steps feel consistent with the rest
+   of the UI. */
+.tut-spotlight {
+  position: fixed;
+  z-index: 1;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+  border: 1.5px solid rgba(200, 200, 200, 0.5);
+  pointer-events: none;
+  transition: top 0.5s cubic-bezier(0.16, 1, 0.3, 1), left 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.5s cubic-bezier(0.16, 1, 0.3, 1), height 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The pulse itself — a thick, soft (blurred + translucent) band rather than
+   a crisp line, same technique as #pulse-ring's box-shadow. Transform/opacity
+   only so it runs on the compositor. */
+.tut-spotlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 4px 8px rgba(196, 196, 196, 0.4);
+  animation: tut-spotlight-ping 1.6s linear infinite;
+  will-change: transform, opacity;
+}
+
+/* Linear timing + explicit mid-stops (rather than a front-loaded easing
+   curve) so the expansion is visible over the whole animation instead of
+   happening almost instantly and leaving only the fade perceptible. */
+@keyframes tut-spotlight-ping {
+  0%   { transform: scale(1);     opacity: 0.6; }
+  60%  { transform: scale(1.0875); opacity: 0.25; }
+  100% { transform: scale(1.15);  opacity: 0; }
+}
+
+/* Small, solid (non-black) card pointing at the spotlighted button/tab. */
+.tut-tooltip {
+  position: fixed;
+  z-index: 2;
+  width: 170px;
+  background: var(--tut-card-bg);
+  border: 1px solid var(--tut-card-border);
+  border-radius: 10px;
+  padding: 10px 12px 9px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  text-align: center;
+  /* Slight delay lets the spotlight glide (0.5s) get most of the way to its
+     new spot before the card fades/settles in, instead of both animating in
+     lockstep — reads as one smooth sequence rather than two separate pops. */
+  animation: tut-tooltip-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.15s backwards;
+}
+
+/* Shaft-and-head pointer from the floating text to the spotlighted button/tab. */
+.tut-arrow {
+  position: absolute;
+  width: 3px;
+  height: 22px;
+  background: #fff;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+  pointer-events: none;
+}
+
+.tut-arrow::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+}
+
+.tut-arrow-up {
+  top: -22px;
+}
+
+.tut-arrow-up::after {
+  top: -7px;
+  border-bottom: 8px solid #fff;
+}
+
+.tut-arrow-down {
+  bottom: -22px;
+}
+
+.tut-arrow-down::after {
+  bottom: -7px;
+  border-top: 8px solid #fff;
+}
+
+.tut-icon {
+  font-size: 22px;
   line-height: 1;
 }
 
-#tutorial-title {
-  font-size: 17px;
+#tutorial-card .tut-icon {
+  font-size: 32px;
+}
+
+.tut-title {
+  font-size: 12.5px;
   font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.3px;
+  color: var(--tut-card-text);
+  letter-spacing: -0.1px;
 }
 
-#tutorial-body {
-  font-size: 13px;
-  color: var(--text-dim);
-  line-height: 1.6;
+#tutorial-card .tut-title {
+  font-size: 15px;
 }
 
-#tutorial-dots {
+.tut-body {
+  font-size: 10.5px;
+  color: var(--tut-card-text-dim);
+  line-height: 1.4;
+}
+
+/* Compact "‹ 1 / 10 ›" stage navigator, replacing separate Back/Skip/Next buttons. */
+.tut-nav {
   display: flex;
-  gap: 6px;
-  margin-top: 4px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 2px;
 }
 
-.tut-dot {
-  width: 7px;
-  height: 7px;
+.tut-nav-arrow {
+  background: none;
+  border: none;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
-  background: var(--border);
-  transition: background 0.25s, transform 0.25s;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--tut-card-text);
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
 }
 
-.tut-dot.active {
-  background: var(--nose-color);
-  transform: scale(1.2);
+.tut-nav-arrow:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+body.light .tut-nav-arrow:hover:not(:disabled) { background: rgba(0, 0, 0, 0.08); }
+
+.tut-nav-arrow:disabled {
+  opacity: 0.25;
+  cursor: default;
 }
 
-#tutorial-btns {
-  display: flex;
-  gap: 10px;
-  width: 100%;
+.tut-nav-stage {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tut-card-text-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: center;
+}
+
+/* Small keycap-style button on the closing card — finishes the tour. */
+.tut-esc-btn {
+  margin-top: 2px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--tut-card-text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 5px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tut-esc-btn:hover { background: rgba(255, 255, 255, 0.16); }
+
+body.light .tut-esc-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+body.light .tut-esc-btn:hover { background: rgba(0, 0, 0, 0.1); }
+
+.tut-skip-link {
+  background: none;
+  border: none;
+  padding: 0;
   margin-top: 4px;
+  font-size: 9px;
+  color: var(--tut-card-text-dim);
+  opacity: 0.7;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-#tutorial-btns .btn-primary {
-  flex: 1;
+.tut-skip-link:hover { opacity: 1; }
+
+@keyframes tut-card-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes tut-tooltip-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────────── */

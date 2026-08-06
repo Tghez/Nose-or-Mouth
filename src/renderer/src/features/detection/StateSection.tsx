@@ -29,7 +29,9 @@ export function StateSection() {
   return (
     <div id="state-section">
       <div id="state-indicator" className={stateClass}>
-        <ClockRing />
+        <div id="clock-ring-wrap">
+          <ClockRing />
+        </div>
         <div id="pulse-ring"></div>
         <div id="state-emoji">{emoji}</div>
         <div id="state-label">{label}</div>
