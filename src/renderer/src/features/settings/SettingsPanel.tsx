@@ -16,9 +16,10 @@ const THRESHOLD_MAX = 0.250
 
 interface SettingsPanelProps {
   onRecalibrate: () => void
+  onShowTutorial: () => void
 }
 
-export function SettingsPanel({ onRecalibrate }: SettingsPanelProps) {
+export function SettingsPanel({ onRecalibrate, onShowTutorial }: SettingsPanelProps) {
   const { state, dispatch } = useAppContext()
   const { user, isPro, signOut } = useAuthContext()
   const { showSettings, settings, threshold } = state
@@ -127,6 +128,14 @@ export function SettingsPanel({ onRecalibrate }: SettingsPanelProps) {
               onClick={onRecalibrate}
             >
               Calibrate Detection Threshold
+            </button>
+            <button
+              className="btn btn-ghost"
+              id="replay-tutorial-btn"
+              style={{ width: '100%', fontSize: '11px' }}
+              onClick={onShowTutorial}
+            >
+              Run Tutorial
             </button>
           </div>
         </div>

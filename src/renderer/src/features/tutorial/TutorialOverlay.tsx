@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { useAppContext } from '../../store/AppContext'
 
 interface TutorialStep {
@@ -96,6 +96,12 @@ export function TutorialOverlay({ onFinish }: TutorialOverlayProps) {
   const step = STEPS[stepIndex]
   const isFirst = stepIndex === 0
   const isLast = stepIndex === STEPS.length - 1
+
+  // Restart from the first step each time the tour is (re)opened — otherwise
+  // replaying it (e.g. via Settings) would resume wherever it was last left.
+  useEffect(() => {
+    if (active) setStepIndex(0)
+  }, [active])
 
   // Measure the target element after render so the spotlight lands in the right spot.
   useLayoutEffect(() => {

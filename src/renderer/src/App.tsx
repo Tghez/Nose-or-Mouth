@@ -188,6 +188,19 @@ export default function App() {
     dispatch({ type: 'SHOW_MODAL', payload: 'calibration' })
   }
 
+  function handleShowTutorial(): void {
+    // Close any other overlay first so the tour always starts over the clean
+    // main view, regardless of what was open behind Settings (e.g. an
+    // outstanding calibration prompt when calibrated is still false).
+    dispatch({ type: 'HIDE_MODAL', payload: 'settings' })
+    dispatch({ type: 'HIDE_MODAL', payload: 'calibration' })
+    dispatch({ type: 'HIDE_MODAL', payload: 'summary' })
+    dispatch({ type: 'HIDE_MODAL', payload: 'summaryLocked' })
+    dispatch({ type: 'HIDE_MODAL', payload: 'limit' })
+    dispatch({ type: 'HIDE_MODAL', payload: 'alert' })
+    dispatch({ type: 'SHOW_MODAL', payload: 'tutorial' })
+  }
+
   async function handleSummaryClick(): Promise<void> {
     if (!isPro) {
       dispatch({ type: 'SHOW_MODAL', payload: 'summaryLocked' })
@@ -260,7 +273,7 @@ export default function App() {
       <SummaryLockOverlay />
       <LimitOverlay />
       <AlertPopup onReset={resetAlertWindow} onShowToast={handleShowToast} />
-      <SettingsPanel onRecalibrate={handleRecalibrate} />
+      <SettingsPanel onRecalibrate={handleRecalibrate} onShowTutorial={handleShowTutorial} />
       <Toast />
       <NoseFlash />
       {!state.isMiniMode && <TitleBar onMinimize={handleMinimize} />}
