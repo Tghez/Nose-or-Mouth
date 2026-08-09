@@ -109,8 +109,8 @@ export function TutorialOverlay({ onFinish }: TutorialOverlayProps) {
 
   function finish(): void {
     dispatch({ type: 'HIDE_MODAL', payload: 'tutorial' })
-    window.electronAPI.saveSettings({ tutorialSeen: true })
-    dispatch({ type: 'SET_SETTINGS', payload: { tutorialSeen: true } })
+    window.electronAPI.saveSettings({ tutorialSeenV2: true })
+    dispatch({ type: 'SET_SETTINGS', payload: { tutorialSeenV2: true } })
     onFinish()
   }
 

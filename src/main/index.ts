@@ -61,7 +61,7 @@ const store = new Store<StoreSchema>({
     summaryTime: '18:00',
     startAtLogin: false,
     calibrated: false,
-    tutorialSeen: false,
+    tutorialSeenV2: false,
     lastSummaryDate: null,
     windowBounds: null,
     cameraPermission: false,

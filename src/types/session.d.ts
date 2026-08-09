@@ -11,7 +11,9 @@ export interface StoreSchema {
   summaryTime: string
   startAtLogin: boolean
   calibrated: boolean
-  tutorialSeen: boolean
+  // Renamed from tutorialSeen when the tutorial was redesigned, so users who
+  // already dismissed the old one see the new spotlight tour once more.
+  tutorialSeenV2: boolean
   lastSummaryDate: string | null
   windowBounds: { x: number; y: number; width: number; height: number } | null
   cameraPermission: boolean

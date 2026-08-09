@@ -84,7 +84,7 @@ export default function App() {
       if (detectorOk) {
         dispatch({ type: 'SET_MEDIAPIPE_READY', payload: true })
         dispatch({ type: 'SET_STATUS', payload: 'Detecting…' })
-        if (!settings.tutorialSeen || import.meta.env.DEV) {
+        if (!settings.tutorialSeenV2) {
           dispatch({ type: 'SHOW_MODAL', payload: 'tutorial' })
         } else if (!settings.calibrated) {
           dispatch({ type: 'SHOW_MODAL', payload: 'calibration' })
@@ -168,7 +168,7 @@ export default function App() {
     if (detectorOk) {
       dispatch({ type: 'SET_MEDIAPIPE_READY', payload: true })
       dispatch({ type: 'SET_STATUS', payload: 'Detecting…' })
-      if (!state.settings.tutorialSeen || import.meta.env.DEV) {
+      if (!state.settings.tutorialSeenV2) {
         dispatch({ type: 'SHOW_MODAL', payload: 'tutorial' })
       } else if (!state.settings.calibrated) {
         dispatch({ type: 'SHOW_MODAL', payload: 'calibration' })
