@@ -11,15 +11,15 @@ interface TutorialStep {
 const STEPS: TutorialStep[] = [
   {
     target: null,
-    icon: '🫁',
+    icon: '👃',
     title: 'Welcome to Mouth Breather',
     body: "A short tour, then we'll calibrate detection to your face"
   },
   {
     target: 'camera-controls',
-    icon: '🎚️',
+    icon: '🎭',
     title: 'Overlay & Camera Toggles',
-    body: 'Hide the face mesh outline or turn the camera off anytime'
+    body: 'Hide the overlay outline or turn the camera off'
   },
   {
     target: 'clock-ring-wrap',
@@ -34,22 +34,10 @@ const STEPS: TutorialStep[] = [
     body: 'Nose vs. mouth breathing time today'
   },
   {
-    target: 'tb-settings',
-    icon: '⚙️',
-    title: 'Settings',
-    body: "Sensitivity, appearance, and your account live here"
-  },
-  {
-    target: 'tb-summary',
-    icon: '📊',
-    title: 'Summary',
-    body: "A daily and weekly summary of your breathing lives here"
-  },
-  {
-    target: 'tb-alert',
-    icon: '🔔',
-    title: 'Alerts',
-    body: 'Configure and reset breathing alerts here'
+    target: 'toolbar',
+    icon: '🧭',
+    title: 'Settings, Summary & Alerts',
+    body: 'Settings, Daily Summary, and Alert configuration all live here'
   },
   {
     target: 'title-btn-min',
@@ -171,7 +159,7 @@ export function TutorialOverlay({ onFinish }: TutorialOverlayProps) {
             disabled={isFirst}
             aria-label="Previous step"
           >‹</button>
-          <span className="tut-nav-stage">{stepIndex + 1} / {STEPS.length}</span>
+          <span className="tut-nav-stage">{stepIndex + 1} / {STEPS.length - 1}</span>
           <button
             className="tut-nav-arrow"
             onClick={handleNext}
@@ -179,7 +167,7 @@ export function TutorialOverlay({ onFinish }: TutorialOverlayProps) {
           >›</button>
         </div>
       )}
-      {isFirst && (
+      {!isLast && (
         <button className="tut-skip-link" onClick={finish}>Skip tour</button>
       )}
     </>
