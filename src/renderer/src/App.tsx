@@ -42,7 +42,7 @@ export default function App() {
   const pendingBootSettingsRef = useRef<StoreSchema | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
 
-  const { startCamera, toggleCamera, restartCamera } = useCamera(videoRef)
+  const { startCamera, stopCamera, toggleCamera, restartCamera } = useCamera(videoRef)
   const { resetAlertWindow, pauseAlertWindow, recordFrame } = useAlerts()
   const { calState, calibrationRefs, startCalibration, skipCalibration, resetCalibration } = useCalibration()
   const { loadSettings } = useSettings()
@@ -133,10 +133,37 @@ export default function App() {
 
   // Resume boot the moment sign-in completes (covers both the initial gate
   // and a session that gets revoked/expires and is re-signed-in later)
+  const prevUserRef = useRef(user)
+  const loggedOutMidSessionRef = useRef(false)
   useEffect(() => {
+    const previousUser = prevUserRef.current
+    prevUserRef.current = user
+
     if (user && pendingBootSettingsRef.current) {
       dispatch({ type: 'HIDE_MODAL', payload: 'auth' })
-      runContinueBootOnce(pendingBootSettingsRef.current)
+      const settings = pendingBootSettingsRef.current
+      pendingBootSettingsRef.current = null
+      runContinueBootOnce(settings)
+      return
+    }
+
+    // Signed out mid-session (not the initial boot gate): the camera view
+    // unmounts but nothing stops the webcam stream on its own — release it
+    // explicitly instead of leaving it running behind the sign-in screen.
+    if (!user && previousUser && bootContinuedRef.current) {
+      loggedOutMidSessionRef.current = true
+      stopCamera(noFaceTimerRef)
+      return
+    }
+
+    // Signed back in after that mid-session sign-out. `runContinueBootOnce`
+    // won't run again (boot already completed once), so reacquire the
+    // stream ourselves for the freshly remounted <video> element.
+    if (user && loggedOutMidSessionRef.current) {
+      loggedOutMidSessionRef.current = false
+      if (state.settings.cameraPermission) {
+        toggleCamera(false, noFaceTimerRef)
+      }
     }
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
