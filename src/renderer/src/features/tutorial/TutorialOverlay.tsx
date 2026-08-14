@@ -25,7 +25,7 @@ const STEPS: TutorialStep[] = [
     target: 'clock-ring-wrap',
     icon: '🔔',
     title: 'Alert Clock',
-    body: 'This ring fills up toward your alert window — set it up under Alerts'
+    body: 'Keep it green by nose breathing, too much mouth breathing triggers an alert'
   },
   {
     target: 'stats-section',
@@ -37,7 +37,7 @@ const STEPS: TutorialStep[] = [
     target: 'toolbar',
     icon: '🧭',
     title: 'Settings, Summary & Alerts',
-    body: 'Settings, Daily Summary, and Alert configuration all live here'
+    body: 'General and Alert configurations live here alongside daily and weekly summaries'
   },
   {
     target: 'title-btn-min',

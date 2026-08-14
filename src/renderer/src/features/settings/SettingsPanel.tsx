@@ -129,14 +129,6 @@ export function SettingsPanel({ onRecalibrate, onShowTutorial }: SettingsPanelPr
             >
               Calibrate Detection Threshold
             </button>
-            <button
-              className="btn btn-ghost"
-              id="replay-tutorial-btn"
-              style={{ width: '100%', fontSize: '11px' }}
-              onClick={onShowTutorial}
-            >
-              Run Tutorial
-            </button>
           </div>
         </div>
 
@@ -171,6 +163,19 @@ export function SettingsPanel({ onRecalibrate, onShowTutorial }: SettingsPanelPr
             </div>
           </div>
         )}
+
+        <div className="settings-group">
+          <div className="settings-row">
+            <button
+              className="btn btn-secondary"
+              id="replay-tutorial-btn"
+              style={{ width: '100%' }}
+              onClick={onShowTutorial}
+            >
+               Start Tutorial ▶️​
+            </button>
+          </div>
+        </div>
 
         <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px', color: 'var(--text-faint)' }}>
           🔒 All processing is local
