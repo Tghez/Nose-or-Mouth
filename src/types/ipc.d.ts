@@ -22,6 +22,7 @@ export interface ElectronAPI {
   minimizeWindow: () => Promise<void>
   setModalOpen: (open: boolean) => Promise<void>
   onMiniModeChanged: (cb: (mini: boolean) => void) => void
+  onScreenLockChanged: (cb: (locked: boolean) => void) => void
   removeAllListeners: (channel: string) => void
 }
 

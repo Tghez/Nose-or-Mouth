@@ -26,6 +26,7 @@ const api: ElectronAPI = {
   minimizeWindow:        ()       => ipcRenderer.invoke('minimize-window'),
   setModalOpen:          (open)   => ipcRenderer.invoke('set-modal-open', open),
   onMiniModeChanged:     (cb) => ipcRenderer.on('mini-mode-changed', (_e, mini) => cb(mini)),
+  onScreenLockChanged:   (cb) => ipcRenderer.on('screen-lock-changed', (_e, locked) => cb(locked)),
 
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
 }

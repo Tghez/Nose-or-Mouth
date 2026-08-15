@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, session, screen, shell } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, session, screen, shell, powerMonitor } from 'electron'
 import type { NativeImage } from 'electron'
 import { join, resolve } from 'path'
 import { execFileSync } from 'child_process'
@@ -452,6 +452,15 @@ app.whenReady().then(() => {
   createWindow()
   createTray()
   registerIpcHandlers()
+
+  // Windows (Win+L) and macOS both leave the webcam stream running behind
+  // the lock screen unless the renderer explicitly tears it down.
+  powerMonitor.on('lock-screen', () => {
+    mainWindow?.webContents.send('screen-lock-changed', true)
+  })
+  powerMonitor.on('unlock-screen', () => {
+    mainWindow?.webContents.send('screen-lock-changed', false)
+  })
 
   startScheduler(store, () => mainWindow, storage)
 

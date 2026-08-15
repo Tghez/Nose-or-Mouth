@@ -63,6 +63,23 @@ export default function App() {
     return () => window.electronAPI.removeAllListeners('mini-mode-changed')
   }, [])
 
+  // Release the camera when the OS lock screen engages (Win+L / macOS lock)
+  // and reacquire it on unlock — otherwise the webcam keeps streaming behind
+  // the lock screen, or comes back in a stuck state once the OS revokes it.
+  const cameraWasOnBeforeLockRef = useRef(false)
+  useEffect(() => {
+    window.electronAPI.onScreenLockChanged((locked) => {
+      if (locked) {
+        cameraWasOnBeforeLockRef.current = state.cameraEnabled
+        if (state.cameraEnabled) stopCamera(noFaceTimerRef)
+      } else if (cameraWasOnBeforeLockRef.current) {
+        cameraWasOnBeforeLockRef.current = false
+        toggleCamera(false, noFaceTimerRef)
+      }
+    })
+    return () => window.electronAPI.removeAllListeners('screen-lock-changed')
+  }, [state.cameraEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const { showSettings, showSummary, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay, showSummaryLockOverlay } = state
   useEffect(() => {
     const anyOpen = showSettings || showSummary || showCalibration || showTutorial || showOnboarding || showAuthModal || showLimitOverlay || showSummaryLockOverlay
