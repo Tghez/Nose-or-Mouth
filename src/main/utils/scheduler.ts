@@ -38,14 +38,31 @@ export function startScheduler(
   getWindow: () => BrowserWindow | null,
   storage: StorageModule
 ): void {
+  // Tracks the calendar date across ticks (in-memory only) so we can detect an
+  // actual local-midnight crossing while the app stays open. Seeded to "today"
+  // on every launch so a cold start on a later date never looks like a live
+  // rollover — that would wipe out the previous day's already-saved totals.
+  let currentDate = localDateString()
+
   setInterval(() => {
+    const today = localDateString()
+
+    // ── Local midnight — the only trigger that resets the counters ──
+    if (today !== currentDate) {
+      const previousDate = currentDate
+      currentDate = today
+      const win = getWindow()
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('day-reset-trigger', { previousDate })
+      }
+    }
+
+    // ── Summary Time — notification only, never resets data ──
     const now = new Date()
     const summaryTime = store.get('summaryTime', '18:00') as string
     const [targetH, targetM] = summaryTime.split(':').map(Number)
 
     if (now.getHours() !== targetH || now.getMinutes() !== targetM) return
-
-    const today = localDateString()
     if (store.get('lastSummaryDate') === today) return
 
     store.set('lastSummaryDate', today)

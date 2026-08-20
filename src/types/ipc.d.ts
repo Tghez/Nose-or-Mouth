@@ -14,6 +14,7 @@ export interface ElectronAPI {
   getSummary: (date?: string) => Promise<SummaryData>
   openExternal: (url: string) => Promise<void>
   onDailySummaryTrigger: (cb: (data: SummaryData) => void) => void
+  onDayReset: (cb: (data: { previousDate: string }) => void) => void
   onSettingsChanged: (cb: (settings: StoreSchema) => void) => void
   onAuthCallback: (cb: (url: string) => void) => void
   exitMiniMode: () => Promise<void>

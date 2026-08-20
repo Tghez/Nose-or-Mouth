@@ -42,10 +42,10 @@ export function useCounters(
 
   useEffect(() => { pauseAlertRef.current = pauseAlertWindow }, [pauseAlertWindow])
 
-  async function persistSession(): Promise<void> {
+  async function persistSession(dateOverride?: string): Promise<void> {
     if (!isProRef.current) return
     const payload = {
-      date: todayString(),
+      date: dateOverride ?? todayString(),
       sessionStart: sessionStartRef.current,
       mouthBreathingSeconds: baseMouthRef.current + mouthSecondsRef.current,
       noseBreathingSeconds:  baseNoseRef.current  + noseSecondsRef.current,
@@ -99,5 +99,5 @@ export function useCounters(
     limitReachedRef.current = false
   }
 
-  return { persistSession: () => persistRef.current(), resetLimitGate }
+  return { persistSession: (dateOverride?: string) => persistRef.current(dateOverride), resetLimitGate }
 }

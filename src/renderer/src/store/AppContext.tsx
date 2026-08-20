@@ -149,7 +149,7 @@ function appReducer(state: AppContextState, action: AppAction): AppContextState 
     case 'SET_SUMMARY_DATA':
       return { ...state, summaryData: action.payload }
     case 'RESET_DAY':
-      return { ...state, noseSeconds: 0, mouthSeconds: 0, sessionStart: new Date().toISOString() }
+      return { ...state, noseSeconds: 0, mouthSeconds: 0, baseNoseSeconds: 0, baseMouthSeconds: 0, sessionStart: new Date().toISOString() }
     case 'SET_MINI_MODE':
       return { ...state, isMiniMode: action.payload }
     default:
