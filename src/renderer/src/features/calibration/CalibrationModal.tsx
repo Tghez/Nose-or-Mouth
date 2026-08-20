@@ -72,6 +72,10 @@ export function CalibrationModal({ calState, calibrationRefs, videoRef, onStart,
   const showPrimary = calState.step === 0 || calState.done
   const showSkip = !calState.done
   const faceOk = state.cameraEnabled && state.faceDetected
+  // Camera stream can be "ready" while MediaPipe never actually sees a face
+  // (e.g. camera comes up in a broken state after an OS update/restart) —
+  // require a live face detection before calibration is allowed to start.
+  const idleNoFace = calState.step === 0 && !calState.done && !faceOk
 
   let videoOverlay: ReactNode = null
   if (calState.phase === 'countdown' && calState.countdown !== null) {
@@ -153,15 +157,15 @@ export function CalibrationModal({ calState, calibrationRefs, videoRef, onStart,
           </svg>
         </div>
 
-        <div className="cal-instruction">{calState.instruction}</div>
-        <div className="cal-explanation">{calState.explanation}</div>
+        <div className="cal-instruction">{idleNoFace ? "Camera can't see your face" : calState.instruction}</div>
+        <div className="cal-explanation">{idleNoFace ? 'Position yourself in frame to begin' : calState.explanation}</div>
 
         {showPrimary && (
           <button
             className="btn btn-primary"
             id="cal-start-btn"
             style={{ width: '100%', maxWidth: '200px' }}
-            disabled={calState.btnDisabled}
+            disabled={calState.btnDisabled || idleNoFace}
             onClick={handlePrimaryBtn}
           >
             {calState.btnLabel}

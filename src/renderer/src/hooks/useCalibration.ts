@@ -64,6 +64,28 @@ export function useCalibration() {
     setCalState(s => ({ ...s, phase: 'collecting', countdown: null }))
   }
 
+  // Aborts calibration instead of silently saving a threshold derived from
+  // zero samples — happens if the camera stream is open but MediaPipe never
+  // actually sees a face (e.g. camera came up in a broken state after an OS
+  // update/restart), so samplesRef never gets pushed to during a step.
+  function failCalibration(): void {
+    activeRef.current = false
+    collectingRef.current = false
+    samplesRef.current = []
+    setCalState({
+      step: 0,
+      phase: 'idle',
+      countdown: null,
+      instruction: "Camera can't see your face",
+      explanation: 'Check your camera, then try again',
+      ratioDisplay: '—',
+      completedSteps: 0,
+      btnDisabled: false,
+      btnLabel: 'Start Calibration',
+      done: false,
+    })
+  }
+
   async function startCalibration(): Promise<void> {
     activeRef.current = true
 
@@ -73,6 +95,7 @@ export function useCalibration() {
     collectingRef.current = true
     await sleep(3000)
     collectingRef.current = false
+    if (samplesRef.current.length === 0) return failCalibration()
     const closedAvg = avg(samplesRef.current)
     setCalState(s => ({ ...s, completedSteps: 1 }))
 
@@ -82,6 +105,7 @@ export function useCalibration() {
     collectingRef.current = true
     await sleep(3000)
     collectingRef.current = false
+    if (samplesRef.current.length === 0) return failCalibration()
     const naturalOpenAvg = avg(samplesRef.current)
     setCalState(s => ({ ...s, completedSteps: 2 }))
 
@@ -91,6 +115,7 @@ export function useCalibration() {
     collectingRef.current = true
     await sleep(3000)
     collectingRef.current = false
+    if (samplesRef.current.length === 0) return failCalibration()
     setCalState(s => ({ ...s, completedSteps: 3 }))
 
     // Midpoint between closed baseline and actual mouth-breathing level
