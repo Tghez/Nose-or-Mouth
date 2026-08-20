@@ -9,20 +9,20 @@ import { WeekBarChart } from './WeekBarChart'
 export function SummaryModal() {
   const { state, dispatch } = useAppContext()
   const { isPro } = useAuthContext()
-  const { showSummary, summaryData } = state
+  const { summaryData } = state
 
   const [tab, setTab]             = useState<'day' | 'week'>('day')
   const [weekData, setWeekData]   = useState<WeekSession[] | null>(null)
   const [weekLoading, setWeekLoading] = useState(false)
 
-  // Reset week cache every time the modal opens so data is always fresh
+  // Reset week cache on every mount so data is always fresh (the panel
+  // remounts each time the tab is switched to, since App.tsx only renders
+  // it while activeTab === 'summary')
   useEffect(() => {
-    if (showSummary) {
-      setTab('day')
-      setWeekData(null)
-      setWeekLoading(false)
-    }
-  }, [showSummary])
+    setTab('day')
+    setWeekData(null)
+    setWeekLoading(false)
+  }, [])
 
   if (!summaryData) return null
 
@@ -63,67 +63,67 @@ export function SummaryModal() {
   }
 
   return (
-    <div id="summary-modal" className={`overlay${showSummary ? '' : ' hidden'}`}>
-      <h2>Daily Summary</h2>
-      <div id="summary-date">
-        <span className="summary-date-weekday">{weekday}</span>
-        <span className="summary-date-full">{fullDate}</span>
+    <div id="summary-modal" className="tab-screen">
+      <div id="summary-header" className="tab-screen-header">
+        <button
+          className="tab-screen-close"
+          id="summary-close-btn"
+          onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', payload: null })}
+        >✕</button>
       </div>
 
-      {isPro && (
-        <div id="summary-tabs">
-          <button
-            className={`summary-tab${tab === 'day' ? ' active' : ''}`}
-            onClick={() => setTab('day')}
-          >
-            Today
-          </button>
-          <button
-            className={`summary-tab${tab === 'week' ? ' active' : ''}`}
-            onClick={handleWeekTab}
-          >
-            7 Days
-          </button>
+      <div id="summary-body" className="tab-screen-body">
+        <div id="summary-date">
+          <span className="summary-date-weekday">{weekday}</span>
+          <span className="summary-date-full">{fullDate}</span>
         </div>
-      )}
 
-      <div className="summary-tab-body">
-        {tab === 'day' && (
-          <>
-            <DonutChart nosePct={nosePct} mouthPct={mouthPct} />
-
-            <div id="summary-legend">
-              <div className="legend-item">
-                <div className="legend-dot nose"></div>
-                <span id="legend-nose-pct">{nosePct}% Nose</span>
-              </div>
-              <div className="legend-item">
-                <div className="legend-dot mouth"></div>
-                <span id="legend-mouth-pct">{mouthPct}% Mouth</span>
-              </div>
-            </div>
-
-            <div id="summary-total">Total tracked: {formatTime(total)}</div>
-            <div id="summary-streak">{streakText}</div>
-            <div id="summary-message" className={messageClass}>{messageText}</div>
-          </>
+        {isPro && (
+          <div id="summary-tabs">
+            <button
+              className={`summary-tab${tab === 'day' ? ' active' : ''}`}
+              onClick={() => setTab('day')}
+            >
+              Today
+            </button>
+            <button
+              className={`summary-tab${tab === 'week' ? ' active' : ''}`}
+              onClick={handleWeekTab}
+            >
+              7 Days
+            </button>
+          </div>
         )}
 
-        {tab === 'week' && (
-          weekLoading
-            ? <div className="week-loading">Loading…</div>
-            : <WeekBarChart sessions={weekData ?? []} />
-        )}
+        <div className="summary-tab-body">
+          {tab === 'day' && (
+            <>
+              <DonutChart nosePct={nosePct} mouthPct={mouthPct} />
+
+              <div id="summary-legend">
+                <div className="legend-item">
+                  <div className="legend-dot nose"></div>
+                  <span id="legend-nose-pct">{nosePct}% Nose</span>
+                </div>
+                <div className="legend-item">
+                  <div className="legend-dot mouth"></div>
+                  <span id="legend-mouth-pct">{mouthPct}% Mouth</span>
+                </div>
+              </div>
+
+              <div id="summary-total">Total tracked: {formatTime(total)}</div>
+              <div id="summary-streak">{streakText}</div>
+              <div id="summary-message" className={messageClass}>{messageText}</div>
+            </>
+          )}
+
+          {tab === 'week' && (
+            weekLoading
+              ? <div className="week-loading">Loading…</div>
+              : <WeekBarChart sessions={weekData ?? []} />
+          )}
+        </div>
       </div>
-
-      <button
-        className="btn btn-primary"
-        id="summary-close-btn"
-        style={{ width: '100%', maxWidth: '200px' }}
-        onClick={() => dispatch({ type: 'HIDE_MODAL', payload: 'summary' })}
-      >
-        Done
-      </button>
     </div>
   )
 }

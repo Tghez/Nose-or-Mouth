@@ -22,7 +22,7 @@ interface SettingsPanelProps {
 export function SettingsPanel({ onRecalibrate, onShowTutorial }: SettingsPanelProps) {
   const { state, dispatch } = useAppContext()
   const { user, isPro, signOut } = useAuthContext()
-  const { showSettings, settings, threshold } = state
+  const { settings, threshold } = state
 
   const activeStage = SENSITIVITY_STAGES.find(s => Math.abs(s.value - threshold) < 0.001)
   const dotPct = ((threshold - THRESHOLD_MIN) / (THRESHOLD_MAX - THRESHOLD_MIN)) * 100
@@ -48,18 +48,16 @@ export function SettingsPanel({ onRecalibrate, onShowTutorial }: SettingsPanelPr
   }
 
   return (
-    <div id="settings-panel" className={showSettings ? '' : 'hidden'}>
-      <div id="settings-header">
-        <h2>Settings</h2>
+    <div id="settings-panel" className="tab-screen">
+      <div id="settings-header" className="tab-screen-header">
         <button
-          className="btn btn-ghost"
+          className="tab-screen-close"
           id="settings-close-btn"
-          style={{ padding: '4px 8px', fontSize: '18px' }}
-          onClick={() => dispatch({ type: 'HIDE_MODAL', payload: 'settings' })}
+          onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', payload: null })}
         >✕</button>
       </div>
 
-      <div id="settings-body">
+      <div id="settings-body" className="tab-screen-body">
         <div className="settings-group">
           <div className="settings-row">
             <div className="settings-row-label">

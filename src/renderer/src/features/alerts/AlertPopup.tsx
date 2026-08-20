@@ -9,13 +9,13 @@ interface AlertPopupProps {
 
 export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
   const { state, dispatch } = useAppContext()
-  const { showAlertPopup, settings, clockFilled, clockSegments } = state
+  const { settings, clockFilled, clockSegments } = state
 
   const alertEnabled = settings.alertEnabled ?? true
   const alertWindowSeconds = settings.alertWindowSeconds ?? 120
 
   function close(): void {
-    dispatch({ type: 'HIDE_MODAL', payload: 'alert' })
+    dispatch({ type: 'SET_ACTIVE_TAB', payload: null })
   }
 
   function saveSetting(partial: Partial<typeof settings>): void {
@@ -44,40 +44,38 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
     : formatMS(clockFilled)
 
   return (
-    <>
-      <div
-        id="alert-backdrop"
-        className={showAlertPopup ? '' : 'hidden'}
-        onClick={close}
-      />
-      <div id="alert-popup" className={showAlertPopup ? '' : 'hidden'}>
-        <div id="alert-popup-header">
-          <span>Breathing Alert</span>
-          <button id="alert-popup-close" onClick={close}>✕</button>
-        </div>
+    <div id="alert-popup" className="tab-screen">
+      <div id="alert-popup-header" className="tab-screen-header">
+        <button className="tab-screen-close" id="alert-popup-close" onClick={close}>✕</button>
+      </div>
+      <div id="alert-popup-body" className="tab-screen-body">
         <div id="alert-popup-desc">
           Get notified if you're mouth breathing too much within your chosen time window.
         </div>
-        <div className="alert-row" id="alert-counter-row">
-          <div className="alert-row-label">
-            <span>Window Progress</span>
-            <small>Seconds elapsed in current window</small>
+
+        <div className="settings-group">
+          <div className="settings-row">
+            <div className="settings-row-label">
+              <span>Alerts Enabled</span>
+            </div>
+            <Toggle
+              id="alert-enabled-toggle"
+              checked={alertEnabled}
+              onChange={handleEnabledChange}
+            />
           </div>
-          <span id="alert-window-counter">{counterText}</span>
         </div>
-        <div className="alert-row">
-          <label className="alert-row-label" htmlFor="alert-enabled-toggle">
-            <span>Alerts Enabled</span>
-          </label>
-          <Toggle
-            id="alert-enabled-toggle"
-            checked={alertEnabled}
-            onChange={handleEnabledChange}
-          />
-        </div>
-        <div id="alert-controls" className={alertEnabled ? '' : 'disabled'}>
-          <div className="alert-row">
-            <div className="alert-row-label">
+
+        <div className={`settings-group${alertEnabled ? '' : ' disabled'}`} id="alert-controls">
+          <div className="settings-row">
+            <div className="settings-row-label">
+              <span>Window Progress</span>
+              <small>Seconds elapsed in current window</small>
+            </div>
+            <span id="alert-window-counter">{counterText}</span>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row-label">
               <span>Time Window</span>
               <small>Rolling period to measure</small>
             </div>
@@ -93,8 +91,8 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
               <option value="300">5 min</option>
             </select>
           </div>
-          <div className="alert-row">
-            <div className="alert-row-label">
+          <div className="settings-row">
+            <div className="settings-row-label">
               <span>Reset timer</span>
               <small>Re-arm the alert for next cycle</small>
             </div>
@@ -107,6 +105,6 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
           </div>
         </div>
       </div>
-    </>
+    </div>
   )
 }

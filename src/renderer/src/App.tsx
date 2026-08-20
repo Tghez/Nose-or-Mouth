@@ -80,11 +80,11 @@ export default function App() {
     return () => window.electronAPI.removeAllListeners('screen-lock-changed')
   }, [state.cameraEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { showSettings, showSummary, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay, showSummaryLockOverlay } = state
+  const { activeTab, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay, showSummaryLockOverlay } = state
   useEffect(() => {
-    const anyOpen = showSettings || showSummary || showCalibration || showTutorial || showOnboarding || showAuthModal || showLimitOverlay || showSummaryLockOverlay
+    const anyOpen = activeTab !== null || showCalibration || showTutorial || showOnboarding || showAuthModal || showLimitOverlay || showSummaryLockOverlay
     window.electronAPI.setModalOpen(anyOpen)
-  }, [showSettings, showSummary, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay, showSummaryLockOverlay])
+  }, [activeTab, showCalibration, showTutorial, showOnboarding, showAuthModal, showLimitOverlay, showSummaryLockOverlay])
 
   async function continueBootAfterAuth(settings: StoreSchema): Promise<void> {
     if (!settings.cameraPermission) {
@@ -227,7 +227,7 @@ export default function App() {
   }
 
   function handleRecalibrate(): void {
-    dispatch({ type: 'HIDE_MODAL', payload: 'settings' })
+    dispatch({ type: 'SET_ACTIVE_TAB', payload: null })
     resetCalibration()
     dispatch({ type: 'SHOW_MODAL', payload: 'calibration' })
   }
@@ -236,12 +236,10 @@ export default function App() {
     // Close any other overlay first so the tour always starts over the clean
     // main view, regardless of what was open behind Settings (e.g. an
     // outstanding calibration prompt when calibrated is still false).
-    dispatch({ type: 'HIDE_MODAL', payload: 'settings' })
+    dispatch({ type: 'SET_ACTIVE_TAB', payload: null })
     dispatch({ type: 'HIDE_MODAL', payload: 'calibration' })
-    dispatch({ type: 'HIDE_MODAL', payload: 'summary' })
     dispatch({ type: 'HIDE_MODAL', payload: 'summaryLocked' })
     dispatch({ type: 'HIDE_MODAL', payload: 'limit' })
-    dispatch({ type: 'HIDE_MODAL', payload: 'alert' })
     dispatch({ type: 'SHOW_MODAL', payload: 'tutorial' })
   }
 
@@ -253,17 +251,15 @@ export default function App() {
     await persistSession()
     const data = await window.electronAPI.getSummary()
     dispatch({ type: 'SET_SUMMARY_DATA', payload: data })
-    dispatch({ type: 'SHOW_MODAL', payload: 'summary' })
+    dispatch({ type: 'SET_ACTIVE_TAB', payload: 'summary' })
   }
 
   function handleMinimize(): void {
     // Close any open modal/overlay first so mini mode always starts from the clean main view
-    dispatch({ type: 'HIDE_MODAL', payload: 'settings' })
-    dispatch({ type: 'HIDE_MODAL', payload: 'summary' })
+    dispatch({ type: 'SET_ACTIVE_TAB', payload: null })
     dispatch({ type: 'HIDE_MODAL', payload: 'auth' })
     dispatch({ type: 'HIDE_MODAL', payload: 'limit' })
     dispatch({ type: 'HIDE_MODAL', payload: 'summaryLocked' })
-    dispatch({ type: 'HIDE_MODAL', payload: 'alert' })
     window.electronAPI.enterMiniMode()
   }
 
@@ -313,23 +309,31 @@ export default function App() {
         onClose={() => {}}
         onSkip={skipCalibration}
       />
-      <SummaryModal />
       <SummaryLockOverlay />
       <LimitOverlay />
-      <AlertPopup onReset={resetAlertWindow} onShowToast={handleShowToast} />
-      <SettingsPanel onRecalibrate={handleRecalibrate} onShowTutorial={handleShowTutorial} />
       <Toast />
       <NoseFlash />
       {!state.isMiniMode && <TitleBar onMinimize={handleMinimize} />}
       <div id="app" className={state.isMiniMode ? 'app-mini-hidden' : undefined}>
         <Toolbar onSummaryClick={handleSummaryClick} />
-        <CameraSection
-          videoRef={videoRef}
-          faceCanvasRef={faceCanvasRef}
-          onToggleCamera={handleToggleCamera}
-        />
-        <StateSection />
-        <StatsSection />
+        {state.activeTab === 'settings' && (
+          <SettingsPanel onRecalibrate={handleRecalibrate} onShowTutorial={handleShowTutorial} />
+        )}
+        {state.activeTab === 'summary' && <SummaryModal />}
+        {state.activeTab === 'alert' && (
+          <AlertPopup onReset={resetAlertWindow} onShowToast={handleShowToast} />
+        )}
+        {state.activeTab === null && (
+          <>
+            <CameraSection
+              videoRef={videoRef}
+              faceCanvasRef={faceCanvasRef}
+              onToggleCamera={handleToggleCamera}
+            />
+            <StateSection />
+            <StatsSection />
+          </>
+        )}
       </div>
     </>
   )

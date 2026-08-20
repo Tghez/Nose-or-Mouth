@@ -23,11 +23,11 @@ export function Toolbar({ onSummaryClick }: ToolbarProps) {
   return (
     <div id="toolbar">
       <button
-        className="tb-btn"
+        className={`tb-btn${state.activeTab === 'settings' ? ' active' : ''}`}
         id="tb-settings"
         onClick={e => {
           handleBtnClick(e)
-          dispatch({ type: 'SHOW_MODAL', payload: 'settings' })
+          dispatch({ type: 'SET_ACTIVE_TAB', payload: 'settings' })
         }}
       >
         <svg className="tb-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
@@ -36,7 +36,7 @@ export function Toolbar({ onSummaryClick }: ToolbarProps) {
         <span className="tb-label">Settings</span>
       </button>
       <button
-        className="tb-btn"
+        className={`tb-btn${state.activeTab === 'summary' ? ' active' : ''}`}
         id="tb-summary"
         onClick={async e => {
           handleBtnClick(e)
@@ -49,11 +49,11 @@ export function Toolbar({ onSummaryClick }: ToolbarProps) {
         <span className="tb-label">Summary</span>
       </button>
       <button
-        className={`tb-btn${state.alertFired && (state.settings.alertEnabled ?? true) ? ' alert-fired' : ''}`}
+        className={`tb-btn${state.alertFired && (state.settings.alertEnabled ?? true) ? ' alert-fired' : ''}${state.activeTab === 'alert' ? ' active' : ''}`}
         id="tb-alert"
         onClick={e => {
           handleBtnClick(e)
-          dispatch({ type: 'SHOW_MODAL', payload: 'alert' })
+          dispatch({ type: 'SET_ACTIVE_TAB', payload: 'alert' })
         }}
       >
         <svg className="tb-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">

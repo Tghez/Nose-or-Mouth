@@ -23,7 +23,7 @@ export function useIpc(persistSession: (dateOverride?: string) => Promise<void>,
 
       if (isProRef.current) {
         dispatch({ type: 'SET_SUMMARY_DATA', payload: data })
-        dispatch({ type: 'SHOW_MODAL', payload: 'summary' })
+        dispatch({ type: 'SET_ACTIVE_TAB', payload: 'summary' })
       } else {
         dispatch({ type: 'SHOW_MODAL', payload: 'summaryLocked' })
       }

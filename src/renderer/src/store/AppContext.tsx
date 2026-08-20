@@ -17,15 +17,13 @@ export interface AppContextState {
   sessionStart: string
   threshold: number
   settings: Partial<StoreSchema>
-  showSettings: boolean
-  showSummary: boolean
+  activeTab: 'settings' | 'summary' | 'alert' | null
   showCalibration: boolean
   showTutorial: boolean
   showOnboarding: boolean
   showAuthModal: boolean
   showLimitOverlay: boolean
   showSummaryLockOverlay: boolean
-  showAlertPopup: boolean
   statusText: string
   toastMessage: string | null
   faceMeshVisible: boolean
@@ -38,7 +36,7 @@ export interface AppContextState {
   noseFlash: { id: number; message: string } | null
 }
 
-type ModalName = 'settings' | 'summary' | 'calibration' | 'tutorial' | 'onboarding' | 'auth' | 'limit' | 'summaryLocked' | 'alert'
+type ModalName = 'calibration' | 'tutorial' | 'onboarding' | 'auth' | 'limit' | 'summaryLocked'
 
 export type AppAction =
   | { type: 'SET_DETECTION_STATE'; payload: { mouthOpen: boolean; faceDetected: boolean; lipsOccluded: boolean; paused: boolean } }
@@ -50,6 +48,7 @@ export type AppAction =
   | { type: 'SET_STATUS'; payload: string }
   | { type: 'SHOW_MODAL'; payload: ModalName }
   | { type: 'HIDE_MODAL'; payload: ModalName }
+  | { type: 'SET_ACTIVE_TAB'; payload: 'settings' | 'summary' | 'alert' | null }
   | { type: 'SET_CAMERA_READY'; payload: boolean }
   | { type: 'SET_MEDIAPIPE_READY'; payload: boolean }
   | { type: 'SET_CAMERA_ENABLED'; payload: boolean }
@@ -76,15 +75,13 @@ const initialState: AppContextState = {
   sessionStart: new Date().toISOString(),
   threshold: 0.2,
   settings: {},
-  showSettings: false,
-  showSummary: false,
+  activeTab: null,
   showCalibration: false,
   showTutorial: false,
   showOnboarding: false,
   showAuthModal: false,
   showLimitOverlay: false,
   showSummaryLockOverlay: false,
-  showAlertPopup: false,
   statusText: 'Initializing…',
   toastMessage: null,
   faceMeshVisible: true,
@@ -99,15 +96,12 @@ const initialState: AppContextState = {
 
 function modalKey(name: ModalName): keyof AppContextState {
   const map: Record<ModalName, keyof AppContextState> = {
-    settings: 'showSettings',
-    summary: 'showSummary',
     calibration: 'showCalibration',
     tutorial: 'showTutorial',
     onboarding: 'showOnboarding',
     auth: 'showAuthModal',
     limit: 'showLimitOverlay',
     summaryLocked: 'showSummaryLockOverlay',
-    alert: 'showAlertPopup',
   }
   return map[name]
 }
@@ -132,6 +126,8 @@ function appReducer(state: AppContextState, action: AppAction): AppContextState 
       return { ...state, [modalKey(action.payload)]: true }
     case 'HIDE_MODAL':
       return { ...state, [modalKey(action.payload)]: false }
+    case 'SET_ACTIVE_TAB':
+      return { ...state, activeTab: action.payload }
     case 'SET_CAMERA_READY':
       return { ...state, cameraReady: action.payload }
     case 'SET_MEDIAPIPE_READY':
