@@ -1018,6 +1018,16 @@ body.light #title-btn-close:hover {
   letter-spacing: 0.3px;
 }
 
+.main-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.main-view.hidden { display: none; }
+
 /* ── Tab screens (Settings / Summary / Alert) ────────────────────────────── */
 .tab-screen {
   flex: 1;

@@ -323,17 +323,18 @@ export default function App() {
         {state.activeTab === 'alert' && (
           <AlertPopup onReset={resetAlertWindow} onShowToast={handleShowToast} />
         )}
-        {state.activeTab === null && (
-          <>
-            <CameraSection
-              videoRef={videoRef}
-              faceCanvasRef={faceCanvasRef}
-              onToggleCamera={handleToggleCamera}
-            />
-            <StateSection />
-            <StatsSection />
-          </>
-        )}
+        {/* Stays mounted (just hidden) rather than conditionally rendered —
+            unmounting <video> would drop its srcObject, so the camera preview
+            comes back black after visiting any tab and closing it. */}
+        <div className={`main-view${state.activeTab === null ? '' : ' hidden'}`}>
+          <CameraSection
+            videoRef={videoRef}
+            faceCanvasRef={faceCanvasRef}
+            onToggleCamera={handleToggleCamera}
+          />
+          <StateSection />
+          <StatsSection />
+        </div>
       </div>
     </>
   )
