@@ -45,9 +45,7 @@ export function AlertPopup({ onReset, onShowToast }: AlertPopupProps) {
 
   return (
     <div id="alert-popup" className="tab-screen">
-      <div id="alert-popup-header" className="tab-screen-header">
-        <button className="tab-screen-close" id="alert-popup-close" onClick={close}>✕</button>
-      </div>
+      <button className="tab-back-btn" id="alert-popup-close" aria-label="Close" onClick={close}>✕</button>
       <div id="alert-popup-body" className="tab-screen-body">
         <div id="alert-popup-desc">
           Get notified if you're mouth breathing too much within your chosen time window.

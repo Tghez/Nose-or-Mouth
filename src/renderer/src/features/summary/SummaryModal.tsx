@@ -64,13 +64,12 @@ export function SummaryModal() {
 
   return (
     <div id="summary-modal" className="tab-screen">
-      <div id="summary-header" className="tab-screen-header">
-        <button
-          className="tab-screen-close"
-          id="summary-close-btn"
-          onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', payload: null })}
-        >✕</button>
-      </div>
+      <button
+        className="tab-back-btn"
+        id="summary-close-btn"
+        aria-label="Close"
+        onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', payload: null })}
+      >✕</button>
 
       <div id="summary-body" className="tab-screen-body">
         <div id="summary-date">
