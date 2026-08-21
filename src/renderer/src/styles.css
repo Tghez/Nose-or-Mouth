@@ -1045,9 +1045,7 @@ body.light #title-btn-close:hover {
 .tab-screen-body {
   flex: 1;
   overflow-y: auto;
-  /* Extra left padding clears the floating back button so tiles never pass
-     under it while scrolling. */
-  padding: 44px 16px 32px 34px;
+  padding: 44px 16px 32px;
 }
 
 /* Floating back button — sits in the gap between the toolbar and the first
@@ -1055,7 +1053,7 @@ body.light #title-btn-close:hover {
 .tab-back-btn {
   position: absolute;
   top: 10px;
-  left: 4px;
+  left: 0;
   z-index: 5;
   width: 26px;
   height: 26px;
