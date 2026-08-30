@@ -44,14 +44,14 @@ export function WeekBarChart({ sessions }: Props) {
   })
   const axisMax = niceMaxSeconds(Math.max(...totals, 1))
 
-  const daysWithData = slots.filter(date => byDate.has(date))
-  const avgNosePct = daysWithData.length === 0 ? null : Math.round(
-    daysWithData.reduce((sum, date) => {
-      const s = byDate.get(date)!
-      const total = s.noseSeconds + s.mouthSeconds
-      return sum + (total > 0 ? (s.noseSeconds / total) * 100 : 0)
-    }, 0) / daysWithData.length
-  )
+  // Sum every second across the 7-day window, then take one ratio.
+  const weekNose  = slots.reduce((sum, date) => sum + (byDate.get(date)?.noseSeconds  ?? 0), 0)
+  const weekMouth = slots.reduce((sum, date) => sum + (byDate.get(date)?.mouthSeconds ?? 0), 0)
+  const weekTotal = weekNose + weekMouth
+
+  const avgNosePct = weekTotal > 0
+    ? Math.round((weekNose / weekTotal) * 100)
+    : null
 
   return (
     <div className="week-view">

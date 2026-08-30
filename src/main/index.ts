@@ -68,6 +68,7 @@ const store = new Store<StoreSchema>({
     alertEnabled: true,
     alertWindowSeconds: 120,
     alertProportionThreshold: 0.6,
+    lightMode: false,
   }
 })
 
